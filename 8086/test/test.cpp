@@ -1,15 +1,8 @@
 #include <cstdio>
-
-#include <8086/Address.h>
-
-void print (Address address) {
-  int ad = address;
-
-  printf ("segment=%04X, offset=%04X, address=%06X (%d)\n", address.segment, address.offset, ad, ad);
-}
+#include "VideoMemoryTest.h"
 
 int main (int argc, char** args, char** env) {
-  Address address (0xF001, 0xFFEF);
-  print (address);
+  test::readByte_planar_mode0 ();
+  test::readByte_planar_mode1 ();
   return 0;
 }

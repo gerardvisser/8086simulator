@@ -21,13 +21,15 @@
 #define __MEMORY_INCLUDED
 
 #include <8086/Address.h>
+#include <8086/VideoMemory.h>
 
 class Memory {
 private:
   uint8_t* m_buffer;
+  VideoMemory& m_videoMemory;
 
 public:
-  Memory (void);
+  Memory (VideoMemory& videoMemory);
 
   Memory (const Memory&) = delete;
   Memory (Memory&&) = delete;
