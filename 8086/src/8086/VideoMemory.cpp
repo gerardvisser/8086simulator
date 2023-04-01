@@ -18,6 +18,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <cstdlib>
+#include <cstring>
 #include <8086/VideoMemory.h>
 
 #define MEM_SIZE 0x10000
@@ -29,7 +30,7 @@ static const uint32_t colcmp[] = {
 
 VideoMemory::VideoMemory (void) {
   m_buffer = (uint32_t*) malloc (sizeof (uint32_t) * MEM_SIZE);
-  /* TODO: Clear memory? */
+  memset (m_buffer, 0, sizeof (uint32_t) * MEM_SIZE);
   m_latch = 0;
   m_setReset = 0;
   m_enableSetReset = 0;
@@ -43,6 +44,8 @@ VideoMemory::VideoMemory (void) {
   m_bitMask = 0xFF;
   m_writePlaneEnable = 0xF;
   m_memoryMapSelect = 1;
+  m_memoryMode = 1;
+  m_shiftMode = 0;
 }
 
 VideoMemory::~VideoMemory (void) {
@@ -84,7 +87,40 @@ int VideoMemory::readWord (int index) {
 }
 
 void VideoMemory::writeByte (int index, uint8_t val) {
-  //TODO
+  index = translateIndex (index);
+  if (index < 0) {
+    return;
+  }
+
+  uint32_t planes;
+  switch (m_writeMode) {
+  case 0:
+    val = ror (val);
+    planes = replicate (val);
+    planes = setResetPlanes (planes, m_enableSetReset);
+    planes = applyLogOp (planes);
+    planes = applyMask (planes, m_bitMask);
+    break;
+
+  case 1:
+    planes = m_latch;
+    break;
+
+  case 2:
+    planes = colcmp[15 - (val & 0xF)];
+    planes = applyLogOp (planes);
+    planes = applyMask (planes, m_bitMask);
+    break;
+
+  case 3:
+    val = ror (val);
+    val &= m_bitMask;
+    planes = setResetPlanes (0, 0xF);
+    planes = applyMask (planes, val);
+  }
+
+  m_buffer[index] &= colcmp[m_writePlaneEnable];
+  m_buffer[index] |= planes & colcmp[15 - m_writePlaneEnable];
 }
 
 void VideoMemory::writeBytes (int index, const uint8_t* src, uint16_t count) {
@@ -152,6 +188,22 @@ void VideoMemory::memoryMapSelect (uint8_t val) {
   m_memoryMapSelect = val & 0x3;
 }
 
+/* 3C4, 4, bits: 3, 2
+   Note that bit 2 will determine the value of readonly bits:
+   3CE, 5, bit 4 and 3CE, 6, bit 1, in both cases the opposite
+   value of 3C4, 4, bit 2.  */
+uint8_t VideoMemory::memoryMode (void) const {
+  return m_memoryMode < 2 ? m_memoryMode : 3;
+}
+
+void VideoMemory::memoryMode (uint8_t val) {
+  val &= 0x3;
+  if (val == 3) {
+    --val;
+  }
+  m_memoryMode = val;
+}
+
 /* 3CE, 5, bit: 3 */
 uint8_t VideoMemory::readMode (void) const {
   return m_readMode;
@@ -188,6 +240,19 @@ void VideoMemory::setReset (uint8_t val) {
   m_setReset = val & 0xF;
 }
 
+/* 3CE, 5, bits: 6, 5 */
+uint8_t VideoMemory::shiftMode (void) const {
+  return m_shiftMode;
+}
+
+void VideoMemory::shiftMode (uint8_t val) {
+  val &= 0x3;
+  if (val == 3) {
+    --val;
+  }
+  m_shiftMode = val;
+}
+
 /* 3CE, 5, bits: 1, 0 */
 uint8_t VideoMemory::writeMode (void) const {
   return m_writeMode;
@@ -206,6 +271,52 @@ void VideoMemory::writePlaneEnable (uint8_t val) {
   m_writePlaneEnable = val & 0xF;
 }
 
+
+uint32_t VideoMemory::applyLogOp (uint32_t planes) const {
+  switch (m_logicalOperation) {
+  case 1:
+    planes &= m_latch;
+    break;
+  case 2:
+    planes |= m_latch;
+    break;
+  case 3:
+    planes ^= m_latch;
+  }
+  return planes;
+}
+
+uint32_t VideoMemory::applyMask (uint32_t planes, uint8_t mask) const {
+  uint32_t wideMask = replicate (mask);
+  planes &= wideMask;
+  planes |= m_latch & (wideMask ^ 0xFFFFFFFF);
+  return planes;
+}
+
+uint32_t VideoMemory::replicate (uint8_t value) {
+  uint32_t result = value;
+  result <<= 8;
+  result |= value;
+  result <<= 8;
+  result |= value;
+  result <<= 8;
+  result |= value;
+  return result;
+}
+
+uint8_t VideoMemory::ror (uint8_t value) const {
+  int result = value;
+  result <<= 8;
+  result |= value;
+  result >>= m_rotateCount;
+  return result;
+}
+
+uint32_t VideoMemory::setResetPlanes (uint32_t planes, int enable) const {
+  planes &= colcmp[enable];
+  planes |= colcmp[15 - (enable & m_setReset)];
+  return planes;
+}
 
 int VideoMemory::translateIndex (int index) const {
   switch (m_memoryMapSelect) {

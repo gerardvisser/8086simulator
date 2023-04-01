@@ -38,6 +38,8 @@ private:
   uint8_t m_bitMask;
   uint8_t m_writePlaneEnable;
   uint8_t m_memoryMapSelect;
+  uint8_t m_memoryMode;
+  uint8_t m_shiftMode;
 
 public:
   VideoMemory (void);
@@ -69,6 +71,8 @@ public:
   void logicalOperation (uint8_t val);
   uint8_t memoryMapSelect (void) const;
   void memoryMapSelect (uint8_t val);
+  uint8_t memoryMode (void) const;
+  void memoryMode (uint8_t val);
   uint8_t readMode (void) const;
   void readMode (uint8_t val);
   uint8_t readPlaneSelect (void) const;
@@ -77,12 +81,19 @@ public:
   void rotateCount (uint8_t val);
   uint8_t setReset (void) const;
   void setReset (uint8_t val);
+  uint8_t shiftMode (void) const;
+  void shiftMode (uint8_t val);
   uint8_t writeMode (void) const;
   void writeMode (uint8_t val);
   uint8_t writePlaneEnable (void) const;
   void writePlaneEnable (uint8_t val);
 
 private:
+  uint32_t applyLogOp (uint32_t planes) const;
+  uint32_t applyMask (uint32_t planes, uint8_t mask) const;
+  static uint32_t replicate (uint8_t value);
+  uint8_t ror (uint8_t value) const;
+  uint32_t setResetPlanes (uint32_t planes, int enable) const;
   int translateIndex (int index) const;
 
 

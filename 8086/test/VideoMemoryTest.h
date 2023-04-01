@@ -23,6 +23,8 @@
 namespace test {
   void readByte_planar_mode0 (void);
   void readByte_planar_mode1 (void);
+  void readByte_memoryMap (void);
+  void writeByte_planar_mode0 (void);
 }
 
 #endif
