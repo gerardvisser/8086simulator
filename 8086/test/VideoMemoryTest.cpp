@@ -354,10 +354,10 @@ void test::writeByte_planar_mode0 (void) {
 
   for (int sr = 0; sr < 16; ++sr) {
     videoMem.setReset (sr);
-    int setReset = createBytePattern (0xFF, sr);
+    uint32_t setReset = createBytePattern (0xFF, sr);
     for (int esr = 0; esr < 16; ++esr) {
       videoMem.enableSetReset (esr);
-      int expected = createBytePattern (0x52, esr ^ 0xF);
+      uint32_t expected = createBytePattern (0x52, esr ^ 0xF);
       expected |= setReset & createBytePattern (0xFF, esr);
       videoMem.writeByte (9, 0x52);
       if (buffer[9] != expected) {
@@ -370,7 +370,7 @@ void test::writeByte_planar_mode0 (void) {
   videoMem.enableSetReset (0);
   videoMem.readByte (0x1001); // Loads the latch register.
   for (int bm = 0; bm < 256; ++bm) {
-    int expected = createBytePattern (bm, 0xF);
+    uint32_t expected = createBytePattern (bm, 0xF);
     videoMem.bitMask (bm);
     videoMem.writeByte (10, 0xFF);
     if (buffer[10] != expected) {
@@ -380,7 +380,7 @@ void test::writeByte_planar_mode0 (void) {
   }
 
   for (int wpe = 0; wpe < 16; ++wpe) {
-    int expected = createBytePattern (0xFF, wpe);
+    uint32_t expected = createBytePattern (0xFF, wpe);
     videoMem.writePlaneEnable (wpe);
     videoMem.writeByte (11 + wpe, 0xFF);
     if (buffer[11 + wpe] != expected) {
@@ -388,6 +388,160 @@ void test::writeByte_planar_mode0 (void) {
       return;
     }
   }
+  printf ("Ok\n");
+}
 
+void test::writeByte_planar_mode1 (void) {
+  printf ("test::writeByte_planar_mode1: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  videoMem.writeMode (1);
+
+  buffer[0x1000] = 0x12345678;
+  videoMem.readByte (0x1000); // Loads the latch register.
+
+  videoMem.writeByte (0, 0xFF);
+  if (buffer[0] != 0x12345678) {
+    printf ("Error writing byte with write plane enable=1111\n");
+    return;
+  }
+
+  videoMem.rotateCount (3);
+  videoMem.setReset (0x6);
+  videoMem.enableSetReset (0x5);
+  videoMem.logicalOperation (2);
+  videoMem.bitMask (0x5A);
+  videoMem.writeByte (1, 0x01);
+  if (buffer[1] != 0x12345678) {
+    printf ("Error writing byte with write plane enable=1111, rotation=3, enable set/reset=0101, set/reset=0110, logical op=OR, bit mask=01011010\n");
+    return;
+  }
+
+  videoMem.writePlaneEnable (0x6);
+  videoMem.writeByte (2, 0x00);
+  if (buffer[2] != 0x00345600) {
+    printf ("Error writing byte with write plane enable=0110\n");
+    return;
+  }
+  printf ("Ok\n");
+}
+
+void test::writeByte_planar_mode2 (void) {
+  printf ("test::writeByte_planar_mode2: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  videoMem.writeMode (2);
+
+  for (int i = 0; i < 256; ++i) {
+    uint32_t expected = createBytePattern (0xFF, i & 0xF);
+    videoMem.writeByte (i, i);
+    if (buffer[i] != expected) {
+      printf ("Error writing byte %02X with no logical op, bit mask=11111111, write plane enable=1111\n", i);
+      return;
+    }
+  }
+
+  buffer[0x1000] = 0xBB40E64D;
+  videoMem.readByte (0x1000); // Loads the latch register.
+
+  videoMem.logicalOperation (1);
+  videoMem.writeByte (256, 0x6);
+  if (buffer[256] != 0x0040E600) {
+    printf ("Error writing byte 06 with logical op=AND, bit mask=11111111, write plane enable=1111\n");
+    return;
+  }
+
+  videoMem.logicalOperation (3);
+  videoMem.writeByte (257, 0x6);
+  if (buffer[257] != 0xBBBF194D) {
+    printf ("Error writing byte 06 with logical op=XOR, bit mask=11111111, write plane enable=1111\n");
+    return;
+  }
+
+  videoMem.bitMask (0x4B);
+  videoMem.writeByte (258, 0x6);
+  if (buffer[258] != 0xBB0BAD4D) {
+    printf ("Error writing byte 06 with logical op=XOR, bit mask=01001011, write plane enable=1111\n");
+    return;
+  }
+
+  buffer[259] = 0xA9876501;
+  videoMem.writePlaneEnable (0x9);
+  videoMem.writeByte (259, 0x6);
+  if (buffer[259] != 0xBB87654D) {
+    printf ("Error writing byte 06 with logical op=XOR, bit mask=01001011, write plane enable=1001\n");
+    return;
+  }
+  printf ("Ok\n");
+}
+
+void test::writeByte_planar_mode3 (void) {
+  printf ("test::writeByte_planar_mode3: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  videoMem.writeMode (3);
+
+  videoMem.enableSetReset (0);
+  for (int i = 0; i < 16; ++i) {
+    buffer[i] = 0x01020304;
+    videoMem.setReset (i);
+    videoMem.writeByte (i, 0xFF);
+    uint32_t expected = createBytePattern (0xFF, i);
+    if (buffer[i] != expected) {
+      printf ("Error writing byte with rotation=0, set/reset=0x%X, host byte=FF, bit mask=11111111, write plane enable=1111\n", i);
+      return;
+    }
+  }
+
+  buffer[0x1000] = 0xFF00FF00;
+  videoMem.readByte (0x1000); // Loads the latch register.
+
+  videoMem.setReset (0x5);
+  for (int i = 0; i < 256; ++i) {
+    videoMem.writeByte (i + 16, i);
+    uint32_t expected = createBytePattern (i, 0x5);
+    expected |= createBytePattern (i ^ 0xFF, 0xA);
+    if (buffer[i + 16] != expected) {
+      printf ("Error writing byte with rotation=0, set/reset=0101, host byte=0x%02X, bit mask=11111111, write plane enable=1111\n", i);
+      return;
+    }
+  }
+
+  videoMem.bitMask (0x33);
+  videoMem.writeByte (0, 0x5C);
+  if (buffer[0] != 0xEF10EF10) {
+    printf ("Error writing byte with rotation=0, set/reset=0101, host byte=5C, bit mask=00110011, write plane enable=1111\n");
+    return;
+  }
+
+  videoMem.rotateCount (1);
+  videoMem.writeByte (1, 0x5C);
+  if (buffer[1] != 0xDD22DD22) {
+    printf ("Error writing byte with rotation=1, set/reset=0101, host byte=5C, bit mask=00110011, write plane enable=1111\n");
+    return;
+  }
+
+  videoMem.rotateCount (2);
+  videoMem.writeByte (2, 0x5C);
+  if (buffer[2] != 0xEC13EC13) {
+    printf ("Error writing byte with rotation=2, set/reset=0101, host byte=5C, bit mask=00110011, write plane enable=1111\n");
+    return;
+  }
+
+  for (int i = 0; i < 16; ++i) {
+    buffer[i] = 0x01010101;
+    uint32_t wpe = createBytePattern (0xFF, i);
+    uint32_t expected = 0xEC13EC13 & wpe;
+    expected |= buffer[i] & (wpe ^ 0xFFFFFFFF);
+    videoMem.writePlaneEnable (i);
+    videoMem.writeByte (i, 0x5C);
+    if (buffer[i] != expected) {
+      printf ("Error writing byte with rotation=2, set/reset=0101, host byte=5C, bit mask=00110011, write plane enable=0x%X\n", i);
+      return;
+    }
+  }
   printf ("Ok\n");
 }
