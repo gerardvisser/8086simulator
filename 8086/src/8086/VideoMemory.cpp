@@ -58,9 +58,30 @@ int VideoMemory::readByte (int index) {
     return 0xFF;
   }
 
+  int readMode;
+  int readPlaneSelect;
+  switch (m_memoryMode) {
+  case 0:
+    readMode = 0;
+    readPlaneSelect = index & 1;
+    readPlaneSelect |= m_readPlaneSelect & 2;
+    index >>= 1;
+    break;
+
+  case 1:
+    readMode = m_readMode;
+    readPlaneSelect = m_readPlaneSelect;
+    break;
+
+  default:
+    readMode = 0;
+    readPlaneSelect = index & 3;
+    index >>= 2;
+  }
+
   uint8_t result;
   m_latch = m_buffer[index];
-  if (m_readMode != 0) {
+  if (readMode != 0) {
     uint32_t tmp = m_latch ^ colcmp[m_colourCompare];
     tmp |= colcmp[m_colourDontCare];
     result = tmp >> 24;
@@ -68,7 +89,7 @@ int VideoMemory::readByte (int index) {
     result &= tmp >> 8;
     result &= tmp;
   } else {
-    result = m_latch >> 8 * m_readPlaneSelect;
+    result = m_latch >> 8 * readPlaneSelect;
   }
   return result;
 }
@@ -92,8 +113,28 @@ void VideoMemory::writeByte (int index, uint8_t val) {
     return;
   }
 
+  int writeMode;
+  int writePlaneEnable;
+  switch (m_memoryMode) {
+  case 0:
+    writeMode = 4;
+    writePlaneEnable = 5 << (index & 1) & m_writePlaneEnable;
+    index >>= 1;
+    break;
+
+  case 1:
+    writeMode = m_writeMode;
+    writePlaneEnable = m_writePlaneEnable;
+    break;
+
+  default:
+    writeMode = 4;
+    writePlaneEnable = 1 << (index & 3) & m_writePlaneEnable;
+    index >>= 2;
+  }
+
   uint32_t planes;
-  switch (m_writeMode) {
+  switch (writeMode) {
   case 0:
     val = ror (val);
     planes = replicate (val);
@@ -116,11 +157,16 @@ void VideoMemory::writeByte (int index, uint8_t val) {
     val = ror (val);
     val &= m_bitMask;
     planes = setResetPlanes (0, 0xF);
+    planes = applyLogOp (planes); /* According to docs on internet about VGA, this operation should not be performed.  */
     planes = applyMask (planes, val);
+    break;
+
+  case 4:
+    planes = replicate (val);
   }
 
-  m_buffer[index] &= colcmp[m_writePlaneEnable];
-  m_buffer[index] |= planes & colcmp[15 - m_writePlaneEnable];
+  m_buffer[index] &= colcmp[writePlaneEnable];
+  m_buffer[index] |= planes & colcmp[15 - writePlaneEnable];
 }
 
 void VideoMemory::writeBytes (int index, const uint8_t* src, uint16_t count) {
@@ -193,13 +239,13 @@ void VideoMemory::memoryMapSelect (uint8_t val) {
    3CE, 5, bit 4 and 3CE, 6, bit 1, in both cases the opposite
    value of 3C4, 4, bit 2.  */
 uint8_t VideoMemory::memoryMode (void) const {
-  return m_memoryMode < 2 ? m_memoryMode : 3;
+  return m_memoryMode;
 }
 
 void VideoMemory::memoryMode (uint8_t val) {
   val &= 0x3;
-  if (val == 3) {
-    --val;
+  if (val == 2) {
+    ++val;
   }
   m_memoryMode = val;
 }

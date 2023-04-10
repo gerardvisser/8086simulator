@@ -21,6 +21,28 @@
 #include <cstdio>
 #include <8086/VideoMemory.h>
 
+#define ODD_EVEN 0
+#define PLANAR   1
+#define CHAIN_4  3
+
+void test::readByte_chain4 (void) {
+  printf ("test::readByte_chain4: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  buffer[0] = 0x04030201;
+  buffer[1] = 0x08070605;
+  videoMem.memoryMode (CHAIN_4);
+
+  for (int i = 0; i < 8; ++i) {
+    if (videoMem.readByte (i) != i + 1) {
+      printf ("Error reading byte %d\n", i);
+      return;
+    }
+  }
+  printf ("Ok\n");
+}
+
 void test::readByte_memoryMap (void) {
   printf ("test::readByte_memoryMap: ");
 
@@ -31,7 +53,7 @@ void test::readByte_memoryMap (void) {
   buffer[0x8000] = 0x00000605;
   buffer[0xFFFF] = 0x00000807;
   videoMem.readMode (0);
-  videoMem.memoryMode (1);
+  videoMem.memoryMode (PLANAR);
 
   videoMem.memoryMapSelect (1); // 00000 - 0FFFF
   int byte = videoMem.readByte (0);
@@ -124,7 +146,7 @@ void test::readByte_memoryMap (void) {
     return;
   }
 
-  videoMem.memoryMode (0); // Odd/Even
+  videoMem.memoryMode (ODD_EVEN);
   videoMem.memoryMapSelect (0); // 00000 - 1FFFF
   byte = videoMem.readByte (0);
   if (byte != 1) {
@@ -165,6 +187,33 @@ void test::readByte_memoryMap (void) {
   if (byte != 8) {
     printf ("Error reading byte 0x1FFFF memory map 0\n");
     return;
+  }
+  printf ("Ok\n");
+}
+
+void test::readByte_oddEven (void) {
+  printf ("test::readByte_oddEven: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  buffer[0] = 0x06050201;
+  buffer[1] = 0x08070403;
+  videoMem.memoryMode (ODD_EVEN);
+
+  videoMem.readPlaneSelect (0);
+  for (int i = 0; i < 4; ++i) {
+    if (videoMem.readByte (i) != i + 1) {
+      printf ("Error reading byte %d, planes 0, 1\n", i);
+      return;
+    }
+  }
+
+  videoMem.readPlaneSelect (2);
+  for (int i = 0; i < 4; ++i) {
+    if (videoMem.readByte (i) != i + 5) {
+      printf ("Error reading byte %d, planes 2, 3\n", i);
+      return;
+    }
   }
   printf ("Ok\n");
 }
@@ -250,6 +299,166 @@ void test::readByte_planar_mode1 (void) {
         return;
       }
     }
+  }
+  printf ("Ok\n");
+}
+
+void test::writeByte_chain4 (void) {
+  printf ("test::writeByte_chain4: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  videoMem.memoryMode (CHAIN_4);
+
+  for (int i = 0; i < 8; ++i) {
+    videoMem.writeByte (i, 0xF1 - 15 * i);
+  }
+  if (buffer[0] != 0xC4D3E2F1) {
+    printf ("Error at offset 0 (expected: 0xC4D3E2F1, actual: 0x%08X)\n", buffer[0]);
+    return;
+  }
+  if (buffer[1] != 0x8897A6B5) {
+    printf ("Error at offset 1 (expected: 0x8897A6B5, actual: 0x%08X)\n", buffer[1]);
+    return;
+  }
+  printf ("Ok\n");
+}
+
+void test::writeByte_memoryMap (void) {
+  printf ("test::writeByte_memoryMap: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  videoMem.writeMode (0);
+  videoMem.memoryMode (ODD_EVEN);
+
+  videoMem.memoryMapSelect (1); // 00000 - 0FFFF
+  videoMem.writeByte (0, 1);
+  videoMem.writeByte (0xFFFF, 2);
+  videoMem.writeByte (0x10000, 3);
+  if (buffer[0] != 0x00010001) {
+    printf ("Error writing byte 0 for memory map 1\n");
+    return;
+  }
+  if (buffer[0x7FFF] != 0x02000200) {
+    printf ("Error writing byte 0xFFFF for memory map 1\n");
+    return;
+  }
+  if (buffer[0x8000] != 0) {
+    printf ("Error writing byte 0x10000 for memory map 1\n");
+    return;
+  }
+
+  videoMem.memoryMapSelect (2); // 10000 - 17FFF
+  videoMem.writeByte (0, 4);
+  if (buffer[0] != 0x00010001) {
+    printf ("Error writing byte 0 for memory map 2\n");
+    return;
+  }
+  videoMem.writeByte (0x10000, 4);
+  videoMem.writeByte (0x17FFF, 5);
+  videoMem.writeByte (0x18000, 6);
+  if (buffer[0] != 0x00040004) {
+    printf ("Error writing byte 0x10000 for memory map 2\n");
+    return;
+  }
+  if (buffer[0x3FFF] != 0x05000500) {
+    printf ("Error writing byte 0x17FFF for memory map 2\n");
+    return;
+  }
+  if (buffer[0x4000] != 0) {
+    printf ("Error writing byte 0x18000 for memory map 2\n");
+    return;
+  }
+
+  videoMem.memoryMapSelect (3); // 18000 - 1FFFF
+  videoMem.writeByte (0x18000, 7);
+  videoMem.writeByte (0x1FFFF, 8);
+  videoMem.writeByte (0x20000, 9);
+  if (buffer[0] != 0x00070007) {
+    printf ("Error writing byte 0x18000 for memory map 3\n");
+    return;
+  }
+  if (buffer[0x3FFF] != 0x08000800) {
+    printf ("Error writing byte 0x1FFFF for memory map 3\n");
+    return;
+  }
+  if (buffer[0x4000] != 0) {
+    printf ("Error writing byte 0x20000 for memory map 3\n");
+    return;
+  }
+
+  videoMem.memoryMapSelect (0); // 00000 - 1FFFF
+  videoMem.writeByte (0, 10);
+  videoMem.writeByte (0xFFFF, 11);
+  videoMem.writeByte (0x10000, 12);
+  videoMem.writeByte (0x1FFFF, 13);
+  if (buffer[0] != 0x000A000A) {
+    printf ("Error writing byte 0 for memory map 0\n");
+    return;
+  }
+  if (buffer[0x7FFF] != 0x0B000B00) {
+    printf ("Error writing byte 0xFFFF for memory map 0\n");
+    return;
+  }
+  if (buffer[0x8000] != 0x000C000C) {
+    printf ("Error writing byte 0x10000 for memory map 0\n");
+    return;
+  }
+  if (buffer[0xFFFF] != 0x0D000D00) {
+    printf ("Error writing byte 0x1FFFF for memory map 0\n");
+    return;
+  }
+  printf ("Ok\n");
+}
+
+void test::writeByte_oddEven (void) {
+  printf ("test::writeByte_oddEven: ");
+
+  VideoMemory videoMem;
+  uint32_t* buffer = videoMem.buffer ();
+  videoMem.memoryMode (ODD_EVEN);
+
+  videoMem.writePlaneEnable (0x3);
+  for (int i = 0; i < 8; ++i) {
+    videoMem.writeByte (i, 0xF1 - 15 * i);
+  }
+  if (buffer[0] != 0x0000E2F1) {
+    printf ("Error at offset 0 (expected: 0x0000E2F1, actual: 0x%08X)\n", buffer[0]);
+    return;
+  }
+  if (buffer[1] != 0x0000C4D3) {
+    printf ("Error at offset 1 (expected: 0x0000C4D3, actual: 0x%08X)\n", buffer[1]);
+    return;
+  }
+  if (buffer[2] != 0x0000A6B5) {
+    printf ("Error at offset 2 (expected: 0x0000A6B5, actual: 0x%08X)\n", buffer[2]);
+    return;
+  }
+  if (buffer[3] != 0x00008897) {
+    printf ("Error at offset 3 (expected: 0x00008897, actual: 0x%08X)\n", buffer[3]);
+    return;
+  }
+
+  videoMem.writePlaneEnable (0xC);
+  for (int i = 0; i < 8; ++i) {
+    videoMem.writeByte (i, 0x12 + 0x21 * i);
+  }
+  if (buffer[0] != 0x3312E2F1) {
+    printf ("Error at offset 0 (expected: 0x3312E2F1, actual: 0x%08X)\n", buffer[0]);
+    return;
+  }
+  if (buffer[1] != 0x7554C4D3) {
+    printf ("Error at offset 1 (expected: 0x7554C4D3, actual: 0x%08X)\n", buffer[1]);
+    return;
+  }
+  if (buffer[2] != 0xB796A6B5) {
+    printf ("Error at offset 2 (expected: 0xB796A6B5, actual: 0x%08X)\n", buffer[2]);
+    return;
+  }
+  if (buffer[3] != 0xF9D88897) {
+    printf ("Error at offset 3 (expected: 0xF9D88897, actual: 0x%08X)\n", buffer[3]);
+    return;
   }
   printf ("Ok\n");
 }
@@ -443,6 +652,21 @@ void test::writeByte_planar_mode2 (void) {
     }
   }
 
+  videoMem.setReset (0xA);
+  videoMem.enableSetReset (0xF);
+  videoMem.writeByte (0, 0x05);
+  if (buffer[0] != 0x00FF00FF) {
+    printf ("Error writing byte 05 with no logical op, bit mask=11111111, write plane enable=1111, enable set/reset=1111, set/reset=1010\n");
+    return;
+  }
+
+  videoMem.rotateCount (1);
+  videoMem.writeByte (1, 0x05);
+  if (buffer[1] != 0x00FF00FF) {
+    printf ("Error writing byte 05 with no logical op, bit mask=11111111, write plane enable=1111, enable set/reset=1111, set/reset=1010, rotation=1\n");
+    return;
+  }
+
   buffer[0x1000] = 0xBB40E64D;
   videoMem.readByte (0x1000); // Loads the latch register.
 
@@ -531,6 +755,17 @@ void test::writeByte_planar_mode3 (void) {
     return;
   }
 
+  videoMem.logicalOperation (3);
+  videoMem.writeByte (3, 0x5C);
+  if (buffer[3] != 0xFF13FF13) {
+    /* According to existing docs on internet the logical operation shouldn't be
+       performed and the expected output would be EC13EC13; however, in an experiment
+       on a virtual box, the logical operation was performed!  */
+    printf ("Error writing byte with rotation=2, set/reset=0101, host byte=5C, bit mask=00110011, write plane enable=1111, logical op=XOR\n");
+    return;
+  }
+
+  videoMem.logicalOperation (0);
   for (int i = 0; i < 16; ++i) {
     buffer[i] = 0x01010101;
     uint32_t wpe = createBytePattern (0xFF, i);
