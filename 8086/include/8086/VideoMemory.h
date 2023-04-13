@@ -40,6 +40,7 @@ private:
   uint8_t m_memoryMapSelect;
   uint8_t m_memoryMode;
   uint8_t m_shiftMode;
+  bool m_cgaAddressing;
 
 public:
   VideoMemory (void);
@@ -52,6 +53,7 @@ public:
   VideoMemory& operator= (const VideoMemory&) = delete;
   VideoMemory& operator= (VideoMemory&&) = delete;
 
+  bool getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines);
   int readByte (int index);
   void readBytes (uint8_t* dst, int index, uint16_t count);
   int readWord (int index);
@@ -61,6 +63,8 @@ public:
 
   uint8_t bitMask (void) const;
   void bitMask (uint8_t val);
+  bool cgaAddressing (void) const;
+  void cgaAddressing (bool val);
   uint8_t colourCompare (void) const;
   void colourCompare (uint8_t val);
   uint8_t colourDontCare (void) const;
@@ -91,6 +95,10 @@ public:
 private:
   uint32_t applyLogOp (uint32_t planes) const;
   uint32_t applyMask (uint32_t planes, uint8_t mask) const;
+  void getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int count) const;
+  void getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, int heightInScanLines) const;
+  void getPixelsInterleavedShift (uint8_t* dst, int dstOff, int srcOff, int count) const;
+  void getPixelsSingleShift (uint8_t* dst, int dstOff, int srcOff, int count) const;
   static uint32_t replicate (uint8_t value);
   uint8_t ror (uint8_t value) const;
   uint32_t setResetPlanes (uint32_t planes, int enable) const;

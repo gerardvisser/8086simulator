@@ -46,10 +46,42 @@ VideoMemory::VideoMemory (void) {
   m_memoryMapSelect = 1;
   m_memoryMode = 1;
   m_shiftMode = 0;
+  m_cgaAddressing = false;
 }
 
 VideoMemory::~VideoMemory (void) {
   free (m_buffer);
+}
+
+/*  Characters are always 8 pixels wide.
+    @param dst the destination array, which should be at least 512kiB big.
+    @param widthInCharacters the width in characters of a line; in 256 colour modes the value
+        should be doubled, which is how it is already stored in register 3D4, 1 (except that
+        the value in that register is one too few).
+    @param heightInScanLines the height in scanlines.
+    @return true if the pixels were created.  */
+bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines) {
+  /* TODO: alphanumeric mode. */
+
+  if (m_cgaAddressing) {
+    getPixelsCgaAddressing (dst, widthInCharacters, heightInScanLines);
+    return true;
+  }
+
+  int count = widthInCharacters * heightInScanLines;
+  switch (m_shiftMode) {
+  case 0:
+    getPixelsSingleShift (dst, 0, 0, count);
+    break;
+
+  case 1:
+    getPixelsInterleavedShift (dst, 0, 0, count);
+    break;
+
+  default:
+    getPixels256Shift (dst, 0, 0, count);
+  }
+  return true;
 }
 
 int VideoMemory::readByte (int index) {
@@ -187,6 +219,15 @@ uint8_t VideoMemory::bitMask (void) const {
 
 void VideoMemory::bitMask (uint8_t val) {
   m_bitMask = val;
+}
+
+/* 3D4, 17, bit: 0, inverted */
+bool VideoMemory::cgaAddressing (void) const {
+  return m_cgaAddressing;
+}
+
+void VideoMemory::cgaAddressing (bool val) {
+  m_cgaAddressing = val;
 }
 
 /* 3CE, 2 */
@@ -337,6 +378,119 @@ uint32_t VideoMemory::applyMask (uint32_t planes, uint8_t mask) const {
   planes &= wideMask;
   planes |= m_latch & (wideMask ^ 0xFFFFFFFF);
   return planes;
+}
+
+void VideoMemory::getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int count) const {
+  for (int i = 0; i < count; ++i) {
+    int k = 0;
+    for (int j = 0; j < 4; ++j) {
+      dst[dstOff] = m_buffer[srcOff] >> k;
+      dst[dstOff + 1] = dst[dstOff];
+      dst[dstOff] >>= 4;
+      dst[dstOff + 1] &= 0x0F;
+      dstOff += 2;
+      k += 8;
+    }
+    ++srcOff;
+  }
+}
+
+void VideoMemory::getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, int heightInScanLines) const {
+  void (VideoMemory::*getPixels) (uint8_t*, int, int, int) const;
+  switch (m_shiftMode) {
+  case 0:
+    getPixels = &VideoMemory::getPixelsSingleShift;
+    break;
+  case 1:
+    getPixels = &VideoMemory::getPixelsInterleavedShift;
+    break;
+  default:
+    getPixels = &VideoMemory::getPixels256Shift;
+  }
+
+  int offset8kiB = 0x2000;
+  if (m_memoryMode == 0) {
+    offset8kiB >>= 1;
+  } else if (m_memoryMode > 1) {
+    offset8kiB >>= 2;
+  }
+
+  int dstOff = 0;
+  int srcOff = 0;
+  for (int scanLine = 0; scanLine < heightInScanLines; ++scanLine) {
+    (this->*getPixels) (dst, dstOff, srcOff, widthInCharacters);
+    dstOff += widthInCharacters << 3;
+    srcOff += widthInCharacters;
+    if ((scanLine & 1) != 0) {
+      srcOff -= offset8kiB;
+    } else {
+      srcOff += offset8kiB - widthInCharacters;
+    }
+  }
+}
+
+void VideoMemory::getPixelsInterleavedShift (uint8_t* dst, int dstOff, int srcOff, int count) const {
+  for (int i = 0; i < count; ++i) {
+    uint32_t mask3 = 0x80000000;
+    uint32_t mask2 = 0x800000;
+    uint32_t mask1 = 0x8000;
+    uint32_t mask0 = 0x80;
+    for (int j = 0; j < 4; ++j) {
+      dst[dstOff] = (m_buffer[srcOff] & mask2) != 0;
+      dst[dstOff] <<= 1;
+      mask2 >>= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask2) != 0;
+      dst[dstOff] <<= 1;
+      mask2 >>= 1;
+
+      dst[dstOff] |= (m_buffer[srcOff] & mask0) != 0;
+      dst[dstOff] <<= 1;
+      mask0 >>= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask0) != 0;
+      mask0 >>= 1;
+      ++dstOff;
+    }
+    for (int j = 0; j < 4; ++j) {
+      dst[dstOff] = (m_buffer[srcOff] & mask3) != 0;
+      dst[dstOff] <<= 1;
+      mask3 >>= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask3) != 0;
+      dst[dstOff] <<= 1;
+      mask3 >>= 1;
+
+      dst[dstOff] |= (m_buffer[srcOff] & mask1) != 0;
+      dst[dstOff] <<= 1;
+      mask1 >>= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask1) != 0;
+      mask1 >>= 1;
+      ++dstOff;
+    }
+    ++srcOff;
+  }
+}
+
+void VideoMemory::getPixelsSingleShift (uint8_t* dst, int dstOff, int srcOff, int count) const {
+  for (int i = 0; i < count; ++i) {
+    uint32_t mask3 = 0x80000000;
+    uint32_t mask2 = 0x800000;
+    uint32_t mask1 = 0x8000;
+    uint32_t mask0 = 0x80;
+    for (int j = 0; j < 8; ++j) {
+      dst[dstOff] = (m_buffer[srcOff] & mask3) != 0;
+      dst[dstOff] <<= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask2) != 0;
+      dst[dstOff] <<= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask1) != 0;
+      dst[dstOff] <<= 1;
+      dst[dstOff] |= (m_buffer[srcOff] & mask0) != 0;
+      mask3 >>= 1;
+      mask2 >>= 1;
+      mask1 >>= 1;
+      mask0 >>= 1;
+      ++dstOff;
+    }
+    ++srcOff;
+  }
 }
 
 uint32_t VideoMemory::replicate (uint8_t value) {
