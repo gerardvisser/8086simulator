@@ -19,11 +19,246 @@
 
 #include "VideoMemoryTest.h"
 #include <cstdio>
+#include <cstring>
 #include <8086/VideoMemory.h>
 
+/* Memory modes: */
 #define ODD_EVEN 0
 #define PLANAR   1
 #define CHAIN_4  3
+
+/* Shift modes: */
+#define SINGLE_SHIFT      0
+#define INTERLEAVED_SHIFT 1
+#define _256_SHIFT        2
+
+/*
+Plane 3: 01100111 11101111
+Plane 2: 01000101 11001101
+Plane 1: 00100011 10101011
+Plane 0: 00000001 10001001
+*/
+void test::getPixels_256Shift (void) {
+  printf ("test::getPixels_256Shift: ");
+
+  VideoMemory videoMem;
+  videoMem.shiftMode (_256_SHIFT);
+  uint32_t* buffer = videoMem.buffer ();
+  buffer[0] = 0x67452301;
+  buffer[1] = 0xEFCDAB89;
+
+  uint8_t pixels[32];
+  memset (pixels, 0xFF, 32);
+
+  videoMem.getPixels (pixels, 2, 1);
+
+  for (int i = 0; i < 16; ++i) {
+    if (pixels[i] != i) {
+      printf ("Error in pixel %d\n", i);
+      return;
+    }
+  }
+  for (int i = 16; i < 32; ++i) {
+    if (pixels[i] != 0xFF) {
+      printf ("Error in pixel %d\n", i);
+      return;
+    }
+  }
+  printf ("Ok\n");
+}
+
+void test::getPixels_256Shift_chain4_cgaAddressing (void) {
+  printf ("test::getPixels_256Shift_chain4_cgaAddressing: ");
+
+  VideoMemory videoMem;
+  videoMem.shiftMode (_256_SHIFT);
+  videoMem.memoryMode (CHAIN_4);
+  videoMem.cgaAddressing (true);
+
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i, 0x11);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 80, 0x33);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 0x2000, 0x22);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 0x2050, 0x44);
+  }
+
+  uint8_t pixels[640];
+  memset (pixels, 0xFF, 640);
+
+  videoMem.getPixels (pixels, 20, 4);
+
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 160; ++j) {
+      if (pixels[160*i + j] != i + 1) {
+        printf ("Error in pixel %d (line %d, pixel %d)\n", 160*i + j, i, j);
+        return;
+      }
+    }
+  }
+  printf ("Ok\n");
+}
+
+/*
+Plane 3: 01010101 11111111
+Plane 2: 00000000 10101010
+Plane 1: 00011011 00011011
+Plane 0: 00011011 00011011
+*/
+void test::getPixels_interleavedShift (void) {
+  printf ("test::getPixels_interleavedShift: ");
+
+  VideoMemory videoMem;
+  videoMem.shiftMode (INTERLEAVED_SHIFT);
+  uint32_t* buffer = videoMem.buffer ();
+  buffer[0] = 0x55001B1B;
+  buffer[1] = 0xFFAA1B1B;
+
+  uint8_t pixels[32];
+  memset (pixels, 0xFF, 32);
+
+  videoMem.getPixels (pixels, 2, 1);
+
+  for (int i = 0; i < 16; ++i) {
+    if (pixels[i] != i) {
+      printf ("Error in pixel %d\n", i);
+      return;
+    }
+  }
+  for (int i = 16; i < 32; ++i) {
+    if (pixels[i] != 0xFF) {
+      printf ("Error in pixel %d\n", i);
+      return;
+    }
+  }
+  printf ("Ok\n");
+}
+
+void test::getPixels_interleavedShift_oddEven_cgaAddressing (void) {
+  printf ("test::getPixels_interleavedShift_oddEven_cgaAddressing: ");
+
+  VideoMemory videoMem;
+  videoMem.shiftMode (INTERLEAVED_SHIFT);
+  videoMem.memoryMode (ODD_EVEN);
+  videoMem.cgaAddressing (true);
+  videoMem.writePlaneEnable (0x3);
+
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i, 0x55);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 80, 0xFF);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 0x2000, 0xAA);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 0x2050, 0x66);
+  }
+
+  uint8_t pixels[1280];
+  memset (pixels, 0xFF, 1280);
+
+  videoMem.getPixels (pixels, 40, 4);
+
+  for (int i = 0; i < 3; ++i) {
+    for (int j = 0; j < 320; ++j) {
+      if (pixels[320*i + j] != i + 1) {
+        printf ("Error in pixel %d (line %d, pixel %d)\n", 320*i + j, i, j);
+        return;
+      }
+    }
+  }
+  for (int j = 0; j < 160; ++j) {
+    if (pixels[960 + 2*j] != 1) {
+      printf ("Error in pixel %d (line 3, pixel %d)\n", 960 + 2*j, 2*j);
+      return;
+    }
+    if (pixels[961 + 2*j] != 2) {
+      printf ("Error in pixel %d (line 3, pixel %d)\n", 961 + 2*j, 2*j + 1);
+      return;
+    }
+  }
+  printf ("Ok\n");
+}
+
+/*
+Plane 3: 00000000 11111111
+Plane 2: 00001111 00001111
+Plane 1: 00110011 00110011
+Plane 0: 01010101 01010101
+*/
+void test::getPixels_singleShift (void) {
+  printf ("test::getPixels_singleShift: ");
+
+  VideoMemory videoMem;
+  videoMem.shiftMode (SINGLE_SHIFT);
+  uint32_t* buffer = videoMem.buffer ();
+  buffer[0] = 0x000F3355;
+  buffer[1] = 0xFF0F3355;
+
+  uint8_t pixels[32];
+  memset (pixels, 0xFF, 32);
+
+  videoMem.getPixels (pixels, 2, 1);
+
+  for (int i = 0; i < 16; ++i) {
+    if (pixels[i] != i) {
+      printf ("Error in pixel %d\n", i);
+      return;
+    }
+  }
+  for (int i = 16; i < 32; ++i) {
+    if (pixels[i] != 0xFF) {
+      printf ("Error in pixel %d\n", i);
+      return;
+    }
+  }
+  printf ("Ok\n");
+}
+
+void test::getPixels_singleShift_planar_cgaAddressing (void) {
+  printf ("test::getPixels_singleShift_planar_cgaAddressing: ");
+
+  VideoMemory videoMem;
+  videoMem.shiftMode (SINGLE_SHIFT);
+  videoMem.memoryMode (PLANAR);
+  videoMem.cgaAddressing (true);
+
+  videoMem.writeMode (2);
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i, 1);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 80, 3);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 0x2000, 2);
+  }
+  for (int i = 0; i < 80; ++i) {
+    videoMem.writeByte (i + 0x2050, 4);
+  }
+
+  uint8_t pixels[2560];
+  memset (pixels, 0xFF, 2560);
+
+  videoMem.getPixels (pixels, 80, 4);
+
+  for (int i = 0; i < 4; ++i) {
+    for (int j = 0; j < 640; ++j) {
+      if (pixels[640*i + j] != i + 1) {
+        printf ("Error in pixel %d (line %d, pixel %d)\n", 640*i + j, i, j);
+        return;
+      }
+    }
+  }
+  printf ("Ok\n");
+}
 
 void test::readByte_chain4 (void) {
   printf ("test::readByte_chain4: ");

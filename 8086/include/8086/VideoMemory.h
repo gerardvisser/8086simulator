@@ -41,6 +41,8 @@ private:
   uint8_t m_memoryMode;
   uint8_t m_shiftMode;
   bool m_cgaAddressing;
+  bool m_graphicsMode;
+  bool m_updated;
 
 public:
   VideoMemory (void);
@@ -71,6 +73,8 @@ public:
   void colourDontCare (uint8_t val);
   uint8_t enableSetReset (void) const;
   void enableSetReset (uint8_t val);
+  bool graphicsMode (void) const;
+  void graphicsMode (bool val);
   uint8_t logicalOperation (void) const;
   void logicalOperation (uint8_t val);
   uint8_t memoryMapSelect (void) const;

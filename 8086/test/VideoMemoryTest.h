@@ -33,6 +33,12 @@ namespace test {
   void writeByte_oddEven (void);
   void writeByte_chain4 (void);
   void writeByte_memoryMap (void);
+  void getPixels_singleShift (void);
+  void getPixels_interleavedShift (void);
+  void getPixels_256Shift (void);
+  void getPixels_singleShift_planar_cgaAddressing (void);
+  void getPixels_interleavedShift_oddEven_cgaAddressing (void);
+  void getPixels_256Shift_chain4_cgaAddressing (void);
 }
 
 #endif

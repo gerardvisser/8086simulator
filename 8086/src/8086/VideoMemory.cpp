@@ -23,6 +23,18 @@
 
 #define MEM_SIZE 0x10000
 
+/* Memory modes: */
+#define ODD_EVEN              0
+#define PLANAR                1
+#define CHAIN_4               3
+#define UNDEFINED_MEMORY_MODE 2
+
+/* Shift modes: */
+#define SINGLE_SHIFT         0
+#define INTERLEAVED_SHIFT    1
+#define _256_SHIFT           2
+#define UNDEFINED_SHIFT_MODE 3
+
 static const uint32_t colcmp[] = {
   0xFFFFFFFF, 0xFFFFFF00, 0xFFFF00FF, 0xFFFF0000, 0xFF00FFFF, 0xFF00FF00, 0xFF0000FF, 0xFF000000,
   0x00FFFFFF, 0x00FFFF00, 0x00FF00FF, 0x00FF0000, 0x0000FFFF, 0x0000FF00, 0x000000FF, 0x00000000
@@ -44,9 +56,11 @@ VideoMemory::VideoMemory (void) {
   m_bitMask = 0xFF;
   m_writePlaneEnable = 0xF;
   m_memoryMapSelect = 1;
-  m_memoryMode = 1;
-  m_shiftMode = 0;
+  m_memoryMode = PLANAR;
+  m_shiftMode = SINGLE_SHIFT;
   m_cgaAddressing = false;
+  m_graphicsMode = true;
+  m_updated = true;
 }
 
 VideoMemory::~VideoMemory (void) {
@@ -61,8 +75,14 @@ VideoMemory::~VideoMemory (void) {
     @param heightInScanLines the height in scanlines.
     @return true if the pixels were created.  */
 bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines) {
-  /* TODO: alphanumeric mode. */
+  if (!m_updated) {
+    return false;
+  }
+  m_updated = false;
 
+  if (!m_graphicsMode) {
+    /* TODO: alphanumeric mode. */
+  }
   if (m_cgaAddressing) {
     getPixelsCgaAddressing (dst, widthInCharacters, heightInScanLines);
     return true;
@@ -70,11 +90,11 @@ bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInSc
 
   int count = widthInCharacters * heightInScanLines;
   switch (m_shiftMode) {
-  case 0:
+  case SINGLE_SHIFT:
     getPixelsSingleShift (dst, 0, 0, count);
     break;
 
-  case 1:
+  case INTERLEAVED_SHIFT:
     getPixelsInterleavedShift (dst, 0, 0, count);
     break;
 
@@ -93,14 +113,14 @@ int VideoMemory::readByte (int index) {
   int readMode;
   int readPlaneSelect;
   switch (m_memoryMode) {
-  case 0:
+  case ODD_EVEN:
     readMode = 0;
     readPlaneSelect = index & 1;
     readPlaneSelect |= m_readPlaneSelect & 2;
     index >>= 1;
     break;
 
-  case 1:
+  case PLANAR:
     readMode = m_readMode;
     readPlaneSelect = m_readPlaneSelect;
     break;
@@ -148,13 +168,13 @@ void VideoMemory::writeByte (int index, uint8_t val) {
   int writeMode;
   int writePlaneEnable;
   switch (m_memoryMode) {
-  case 0:
+  case ODD_EVEN:
     writeMode = 4;
     writePlaneEnable = 5 << (index & 1) & m_writePlaneEnable;
     index >>= 1;
     break;
 
-  case 1:
+  case PLANAR:
     writeMode = m_writeMode;
     writePlaneEnable = m_writePlaneEnable;
     break;
@@ -199,6 +219,7 @@ void VideoMemory::writeByte (int index, uint8_t val) {
 
   m_buffer[index] &= colcmp[writePlaneEnable];
   m_buffer[index] |= planes & colcmp[15 - writePlaneEnable];
+  m_updated = true;
 }
 
 void VideoMemory::writeBytes (int index, const uint8_t* src, uint16_t count) {
@@ -257,6 +278,16 @@ void VideoMemory::enableSetReset (uint8_t val) {
   m_enableSetReset = val & 0xF;
 }
 
+/* 3CE, 6, bit: 0
+   Note that this bit will determine the value of readonly bit: 3C0, 10, bit: 0 */
+bool VideoMemory::graphicsMode (void) const {
+  return m_graphicsMode;
+}
+
+void VideoMemory::graphicsMode (bool val) {
+  m_graphicsMode = val;
+}
+
 /* 3CE, 3, bits: 4, 3 */
 uint8_t VideoMemory::logicalOperation (void) const {
   return m_logicalOperation;
@@ -285,8 +316,8 @@ uint8_t VideoMemory::memoryMode (void) const {
 
 void VideoMemory::memoryMode (uint8_t val) {
   val &= 0x3;
-  if (val == 2) {
-    ++val;
+  if (val == UNDEFINED_MEMORY_MODE) {
+    val = CHAIN_4;
   }
   m_memoryMode = val;
 }
@@ -334,8 +365,8 @@ uint8_t VideoMemory::shiftMode (void) const {
 
 void VideoMemory::shiftMode (uint8_t val) {
   val &= 0x3;
-  if (val == 3) {
-    --val;
+  if (val == UNDEFINED_SHIFT_MODE) {
+    val = _256_SHIFT;
   }
   m_shiftMode = val;
 }
@@ -398,10 +429,10 @@ void VideoMemory::getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int c
 void VideoMemory::getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, int heightInScanLines) const {
   void (VideoMemory::*getPixels) (uint8_t*, int, int, int) const;
   switch (m_shiftMode) {
-  case 0:
+  case SINGLE_SHIFT:
     getPixels = &VideoMemory::getPixelsSingleShift;
     break;
-  case 1:
+  case INTERLEAVED_SHIFT:
     getPixels = &VideoMemory::getPixelsInterleavedShift;
     break;
   default:
@@ -409,9 +440,9 @@ void VideoMemory::getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, i
   }
 
   int offset8kiB = 0x2000;
-  if (m_memoryMode == 0) {
+  if (m_memoryMode == ODD_EVEN) {
     offset8kiB >>= 1;
-  } else if (m_memoryMode > 1) {
+  } else if (m_memoryMode == CHAIN_4) {
     offset8kiB >>= 2;
   }
 

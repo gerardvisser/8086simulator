@@ -13,5 +13,11 @@ int main (int argc, char** args, char** env) {
   test::writeByte_oddEven ();
   test::writeByte_chain4 ();
   test::writeByte_memoryMap ();
+  test::getPixels_singleShift ();
+  test::getPixels_interleavedShift ();
+  test::getPixels_256Shift ();
+  test::getPixels_singleShift_planar_cgaAddressing ();
+  test::getPixels_interleavedShift_oddEven_cgaAddressing ();
+  test::getPixels_256Shift_chain4_cgaAddressing ();
   return 0;
 }
