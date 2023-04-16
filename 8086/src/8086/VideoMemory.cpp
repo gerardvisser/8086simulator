@@ -35,6 +35,9 @@
 #define _256_SHIFT           2
 #define UNDEFINED_SHIFT_MODE 3
 
+#define CHAR_BITMAP_DISTANCE       32
+#define TEXT_MODE_CHARACTER_HEIGHT 16
+
 static const uint32_t colcmp[] = {
   0xFFFFFFFF, 0xFFFFFF00, 0xFFFF00FF, 0xFFFF0000, 0xFF00FFFF, 0xFF00FF00, 0xFF0000FF, 0xFF000000,
   0x00FFFFFF, 0x00FFFF00, 0x00FF00FF, 0x00FF0000, 0x0000FFFF, 0x0000FF00, 0x000000FF, 0x00000000
@@ -81,7 +84,8 @@ bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInSc
   m_updated = false;
 
   if (!m_graphicsMode) {
-    /* TODO: alphanumeric mode. */
+    getPixelsAlphanumeric (dst, widthInCharacters, heightInScanLines);
+    return true;
   }
   if (m_cgaAddressing) {
     getPixelsCgaAddressing (dst, widthInCharacters, heightInScanLines);
@@ -423,6 +427,33 @@ void VideoMemory::getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int c
       k += 8;
     }
     ++srcOff;
+  }
+}
+
+void VideoMemory::getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, int heightInScanLines) const {
+  const int heightInRows = heightInScanLines / TEXT_MODE_CHARACTER_HEIGHT;
+  const int nextScanLine = 8 * (widthInCharacters - 1);
+
+  for (int row = 0; row < heightInRows; ++row) {
+    for (int column = 0; column < widthInCharacters; ++column) {
+      int character = m_buffer[widthInCharacters * row + column];
+      int foregroundColour = character >> 8 & 0xF;
+      int backgroundColour = character >> 12 & 0xF;
+      character &= 0xFF;
+
+      int bitmapOffset = character * CHAR_BITMAP_DISTANCE;
+      int dstOff = 8 * (widthInCharacters * TEXT_MODE_CHARACTER_HEIGHT * row + column);
+      for (int line = 0; line < TEXT_MODE_CHARACTER_HEIGHT; ++line) {
+        uint32_t mask = 0x800000;
+        for (int i = 0; i < 8; ++i) {
+          dst[dstOff] = (m_buffer[bitmapOffset] & mask) != 0 ? foregroundColour : backgroundColour;
+          mask >>= 1;
+          ++dstOff;
+        }
+        dstOff += nextScanLine;
+        ++bitmapOffset;
+      }
+    }
   }
 }
 

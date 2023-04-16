@@ -100,6 +100,7 @@ private:
   uint32_t applyLogOp (uint32_t planes) const;
   uint32_t applyMask (uint32_t planes, uint8_t mask) const;
   void getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int count) const;
+  void getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, int heightInScanLines) const;
   void getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, int heightInScanLines) const;
   void getPixelsInterleavedShift (uint8_t* dst, int dstOff, int srcOff, int count) const;
   void getPixelsSingleShift (uint8_t* dst, int dstOff, int srcOff, int count) const;
