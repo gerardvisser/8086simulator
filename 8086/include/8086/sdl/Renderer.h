@@ -17,19 +17,20 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __ADDRESS_INCLUDED
-#define __ADDRESS_INCLUDED
+#ifndef __RENDERER_INCLUDED
+#define __RENDERER_INCLUDED
 
-#include <cstdint>
+#include <8086/sdl/Colour.h>
 
-class Address {
+class Renderer {
 public:
-  uint16_t segment;
-  uint16_t offset;
+  virtual ~Renderer (void);
 
-  explicit Address (uint16_t segment = 0, uint16_t offset = 0);
-
-  operator int (void) const;
+  virtual void clear (void) = 0;
+  virtual void drawPoint (int x, int y) = 0;
+  virtual void present (void) = 0;
+  virtual void setDrawColour (const Colour& colour) = 0;
+  virtual void setResolution (int widthInPixels, int heightInPixels) = 0;
 };
 
 #endif

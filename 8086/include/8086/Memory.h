@@ -29,7 +29,7 @@ private:
   VideoMemory& m_videoMemory;
 
 public:
-  Memory (VideoMemory& videoMemory);
+  explicit Memory (VideoMemory& videoMemory);
 
   Memory (const Memory&) = delete;
   Memory (Memory&&) = delete;

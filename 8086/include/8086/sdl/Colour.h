@@ -17,19 +17,20 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __ADDRESS_INCLUDED
-#define __ADDRESS_INCLUDED
+#ifndef __COLOUR_INCLUDED
+#define __COLOUR_INCLUDED
 
 #include <cstdint>
 
-class Address {
+class Colour {
 public:
-  uint16_t segment;
-  uint16_t offset;
+  static const Colour BLACK;
 
-  explicit Address (uint16_t segment = 0, uint16_t offset = 0);
+  uint8_t red;
+  uint8_t green;
+  uint8_t blue;
 
-  operator int (void) const;
+  explicit Colour (uint8_t red = 0, uint8_t green = 0, uint8_t blue = 0);
 };
 
 #endif

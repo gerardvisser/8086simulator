@@ -17,19 +17,13 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __ADDRESS_INCLUDED
-#define __ADDRESS_INCLUDED
+#ifndef __FONT_INCLUDED
+#define __FONT_INCLUDED
 
 #include <cstdint>
 
-class Address {
-public:
-  uint16_t segment;
-  uint16_t offset;
-
-  explicit Address (uint16_t segment = 0, uint16_t offset = 0);
-
-  operator int (void) const;
-};
+namespace rom {
+  extern const uint8_t font[9728];
+}
 
 #endif
