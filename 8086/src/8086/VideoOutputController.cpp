@@ -27,7 +27,6 @@ VideoOutputController::VideoOutputController (Renderer& renderer, VideoMemory& v
   m_dac = new Colour[0x100];
   m_pixels = (uint8_t*) malloc (0x80000);
   m_videoOutputThreadToBeStopped = false;
-  m_screenCleared = false;
   m_screenDisabled = true;
   m_horizontalEnd = 0;
   m_verticalEnd = 0;
@@ -57,10 +56,6 @@ void VideoOutputController::operator() (void) {
 void VideoOutputController::drawScreen (void) {
   std::lock_guard<std::mutex> lock (m_mutex);
   if (!m_screenDisabled) {
-    if (m_screenCleared) {
-      /* Make sure m_videoMemory will produce pixels!  */
-      m_screenCleared = false;
-    }
     int width = m_horizontalEnd + 1;
     int height = heightInScanLines ();
     if (m_videoMemory.getPixels (m_pixels, width, height)) {
@@ -177,7 +172,6 @@ void VideoOutputController::screenDisabled (bool val) {
       m_renderer.setDrawColour (Colour::BLACK);
       m_renderer.clear ();
       m_renderer.present ();
-      m_screenCleared = true;
       m_screenDisabled = true;
     } else {
       m_screenDisabled = false;

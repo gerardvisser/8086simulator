@@ -42,7 +42,6 @@ private:
   uint8_t m_shiftMode;
   bool m_cgaAddressing;
   bool m_graphicsMode;
-  bool m_updated;
 
 public:
   VideoMemory (void);
