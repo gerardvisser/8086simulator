@@ -63,7 +63,6 @@ VideoMemory::VideoMemory (void) {
   m_shiftMode = SINGLE_SHIFT;
   m_cgaAddressing = false;
   m_graphicsMode = true;
-  m_updated = true;
 }
 
 VideoMemory::~VideoMemory (void) {
@@ -78,11 +77,6 @@ VideoMemory::~VideoMemory (void) {
     @param heightInScanLines the height in scanlines.
     @return true if the pixels were created.  */
 bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines) {
-  if (!m_updated) {
-    return false;
-  }
-  m_updated = false;
-
   if (!m_graphicsMode) {
     getPixelsAlphanumeric (dst, widthInCharacters, heightInScanLines);
     return true;
@@ -223,7 +217,6 @@ void VideoMemory::writeByte (int index, uint8_t val) {
 
   m_buffer[index] &= colcmp[writePlaneEnable];
   m_buffer[index] |= planes & colcmp[15 - writePlaneEnable];
-  m_updated = true;
 }
 
 void VideoMemory::writeBytes (int index, const uint8_t* src, uint16_t count) {

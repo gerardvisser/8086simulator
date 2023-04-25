@@ -33,7 +33,6 @@ private:
   Colour* m_dac;
   uint8_t m_paletteRegisters[16];
   bool m_videoOutputThreadToBeStopped;
-  bool m_screenCleared;
   bool m_screenDisabled;
   uint8_t m_horizontalEnd;
   uint8_t m_verticalEnd;
