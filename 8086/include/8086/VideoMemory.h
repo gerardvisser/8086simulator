@@ -54,7 +54,7 @@ public:
   VideoMemory& operator= (const VideoMemory&) = delete;
   VideoMemory& operator= (VideoMemory&&) = delete;
 
-  bool getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines);
+  void getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines);
   int readByte (int index);
   void readBytes (uint8_t* dst, int index, uint16_t count);
   int readWord (int index);

@@ -28,6 +28,8 @@ VideoOutputController::VideoOutputController (Renderer& renderer, VideoMemory& v
   m_pixels = (uint8_t*) malloc (0x80000);
   m_videoOutputThreadToBeStopped = false;
   m_screenDisabled = true;
+  m_screenOff = true;
+  m_paletteAddressSource = false;
   m_horizontalEnd = 0;
   m_verticalEnd = 0;
   m_overflowRegister = 0;
@@ -58,45 +60,44 @@ void VideoOutputController::drawScreen (void) {
   if (!m_screenDisabled) {
     int width = m_horizontalEnd + 1;
     int height = heightInScanLines ();
-    if (m_videoMemory.getPixels (m_pixels, width, height)) {
+    m_videoMemory.getPixels (m_pixels, width, height);
 
-      m_renderer.setDrawColour (Colour::BLACK);
-      m_renderer.clear ();
+    m_renderer.setDrawColour (Colour::BLACK);
+    m_renderer.clear ();
 
-      width <<= 3 - m_widePixels; /* width in pixels */
-      m_renderer.setResolution (width, height);
-      if (m_widePixels) {
-        for (int h = 0; h < height; ++h) {
-          for (int w = 0; w < width; ++w) {
-            int index = 2 * (width * h + w);
-            int colourIndex = m_pixels[index] << 4;
-            colourIndex |= m_pixels[index + 1];
-            m_renderer.setDrawColour (m_dac[colourIndex]);
-            m_renderer.drawPoint (w, h);
-          }
-        }
-      } else {
-        int highBits = m_colourSelect << 4;
-        int mask;
-        if (m_allColourSelectBitsEnabled) {
-          mask = 0x0F;
-        } else {
-          mask = 0x3F;
-          highBits &= 0xC0;
-        }
-        for (int h = 0; h < height; ++h) {
-          for (int w = 0; w < width; ++w) {
-            int colourIndex = m_paletteRegisters[m_pixels[width * h + w]];
-            colourIndex &= mask;
-            colourIndex |= highBits;
-            m_renderer.setDrawColour (m_dac[colourIndex]);
-            m_renderer.drawPoint (w, h);
-          }
+    width <<= 3 - m_widePixels; /* width in pixels */
+    m_renderer.setResolution (width, height);
+    if (m_widePixels) {
+      for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
+          int index = 2 * (width * h + w);
+          int colourIndex = m_pixels[index] << 4;
+          colourIndex |= m_pixels[index + 1];
+          m_renderer.setDrawColour (m_dac[colourIndex]);
+          m_renderer.drawPoint (w, h);
         }
       }
-      m_renderer.present ();
-
+    } else {
+      int highBits = m_colourSelect << 4;
+      int mask;
+      if (m_allColourSelectBitsEnabled) {
+        mask = 0x0F;
+      } else {
+        mask = 0x3F;
+        highBits &= 0xC0;
+      }
+      for (int h = 0; h < height; ++h) {
+        for (int w = 0; w < width; ++w) {
+          int colourIndex = m_paletteRegisters[m_pixels[width * h + w]];
+          colourIndex &= mask;
+          colourIndex |= highBits;
+          m_renderer.setDrawColour (m_dac[colourIndex]);
+          m_renderer.drawPoint (w, h);
+        }
+      }
     }
+    m_renderer.present ();
+
   }
 }
 
@@ -109,6 +110,20 @@ int VideoOutputController::heightInScanLines (void) {
   result += 1;
   result >>= m_scanDoubling;
   return result;
+}
+
+void VideoOutputController::screenDisabled (bool val) {
+  if (val != m_screenDisabled) {
+    if (val) {
+      std::lock_guard<std::mutex> lock (m_mutex);
+      m_renderer.setDrawColour (Colour::BLACK);
+      m_renderer.clear ();
+      m_renderer.present ();
+      m_screenDisabled = true;
+    } else {
+      m_screenDisabled = false;
+    }
+  }
 }
 
 void VideoOutputController::stopVideoOutputThread (void) {
@@ -133,6 +148,14 @@ void VideoOutputController::colourSelect (uint8_t val) {
   m_colourSelect = val & 0xF;
 }
 
+const Colour& VideoOutputController::dacColour (int index) const {
+  return m_dac[index];
+}
+
+void VideoOutputController::dacColour (int index, const Colour& val) {
+  m_dac[index] = val;
+}
+
 /* 3D4, 1 */
 uint8_t VideoOutputController::horizontalEnd (void) const {
   return m_horizontalEnd;
@@ -151,6 +174,25 @@ void VideoOutputController::overflowRegister (uint8_t val) {
   m_overflowRegister = val;
 }
 
+/* 3C0, index, bit: 5 */
+bool VideoOutputController::paletteAddressSource (void) const {
+  return m_paletteAddressSource;
+}
+
+void VideoOutputController::paletteAddressSource (bool val) {
+  m_paletteAddressSource = val;
+  screenDisabled (m_screenOff | !m_paletteAddressSource);
+}
+
+/* 3C0, 0 - F */
+uint8_t VideoOutputController::paletteRegister (int index) const {
+  return m_paletteRegisters[index];
+}
+
+void VideoOutputController::paletteRegister (int index, uint8_t val) {
+  m_paletteRegisters[index] = val & 0x3F;
+}
+
 /* 3D4, 9, bit: 7 */
 bool VideoOutputController::scanDoubling (void) const {
   return m_scanDoubling;
@@ -161,22 +203,13 @@ void VideoOutputController::scanDoubling (bool val) {
 }
 
 /* 3C4, 1, bit: 5 */
-bool VideoOutputController::screenDisabled (void) const {
-  return m_screenDisabled;
+bool VideoOutputController::screenOff (void) const {
+  return m_screenOff;
 }
 
-void VideoOutputController::screenDisabled (bool val) {
-  if (val != m_screenDisabled) {
-    if (val) {
-      std::lock_guard<std::mutex> lock (m_mutex);
-      m_renderer.setDrawColour (Colour::BLACK);
-      m_renderer.clear ();
-      m_renderer.present ();
-      m_screenDisabled = true;
-    } else {
-      m_screenDisabled = false;
-    }
-  }
+void VideoOutputController::screenOff (bool val) {
+  m_screenOff = val;
+  screenDisabled (m_screenOff | !m_paletteAddressSource);
 }
 
 /* 3D4, 12 */

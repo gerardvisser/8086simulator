@@ -21,9 +21,18 @@
 #include "dacData.h"
 #include "font.h"
 
+static constexpr double DAC_6_BITS_TO_8_BITS = 255.0 / 63;
+static constexpr double DAC_8_BITS_TO_6_BITS = 63.0 / 255;
+
 VideoCard::VideoCard (Renderer& renderer) : m_videoOutputController (renderer, m_videoMemory) {
   m_graphicsRegisterIndex = 0;
   m_sequencerRegisterIndex = 0;
+  m_attributeRegisterIndex = 0;
+  m_attributeDataWrite = false;
+  m_dacReadIndex = 0;
+  m_dacWriteIndex = 0;
+  m_dacState = 3;
+  m_dacCycleIndex = 0;
   m_videoOutputThread = std::move (std::thread (std::ref (m_videoOutputController)));
 }
 
@@ -68,11 +77,26 @@ void VideoCard::loadRom (Memory& memory) {
 
 int VideoCard::readByte (uint16_t port) {
   switch (port) {
+  case 0x3C0:
+    return m_attributeRegisterIndex | m_videoOutputController.paletteAddressSource () << 5;
+
+  case 0x3C1:
+    return readAttributeRegister ();
+
   case 0x3C4:
     return m_sequencerRegisterIndex;
 
   case 0x3C5:
     return readSequencerRegister ();
+
+  case 0x3C7:
+    return m_dacState;
+
+  case 0x3C8:
+    return m_dacWriteIndex;
+
+  case 0x3C9:
+    return readDacValue ();
 
   case 0x3CE:
     return m_graphicsRegisterIndex;
@@ -89,12 +113,39 @@ VideoMemory& VideoCard::videoMemory (void) {
 
 void VideoCard::writeByte (uint16_t port, uint8_t value) {
   switch (port) {
+  case 0x3C0:
+    if (m_attributeDataWrite) {
+      writeAttributeRegister (value);
+    } else {
+      m_attributeRegisterIndex = value & 0x1F;
+      m_videoOutputController.paletteAddressSource ((value & 0x20) != 0);
+    }
+    m_attributeDataWrite = !m_attributeDataWrite;
+    break;
+
   case 0x3C4:
     m_sequencerRegisterIndex = value;
     break;
 
   case 0x3C5:
     writeSequencerRegister (value);
+    break;
+
+  case 0x3C7:
+    m_dacState = 3;
+    m_dacCycleIndex = 0;
+    m_dacReadIndex = value;
+    m_colour = m_videoOutputController.dacColour (m_dacReadIndex);
+    break;
+
+  case 0x3C8:
+    m_dacState = 0;
+    m_dacCycleIndex = 0;
+    m_dacWriteIndex = value;
+    break;
+
+  case 0x3C9:
+    writeDacValue (value);
     break;
 
   case 0x3CE:
@@ -105,6 +156,47 @@ void VideoCard::writeByte (uint16_t port, uint8_t value) {
     writeGraphicsRegister (value);
     break;
   }
+}
+
+int VideoCard::readAttributeRegister (void) const {
+  if (m_attributeRegisterIndex < 0x10) {
+    return m_videoOutputController.paletteRegister (m_attributeRegisterIndex);
+  } else if (m_attributeRegisterIndex == 0x10) {
+    int value = m_videoOutputController.allColourSelectBitsEnabled ();
+    value <<= 1;
+    value |= m_videoOutputController.widePixels ();
+    value <<= 6;
+    value |= m_videoMemory.graphicsMode ();
+    /* Bit 2: Line graphics enable to be implemented later.  */
+    return value;
+  } else if (m_attributeRegisterIndex == 0x14) {
+    return m_videoOutputController.colourSelect ();
+  }
+  return 0xFF;
+}
+
+int VideoCard::readDacValue (void) {
+  int value;
+  switch (m_dacCycleIndex) {
+  case 0:
+    value = (int) (DAC_8_BITS_TO_6_BITS * m_colour.red + 0.5);
+    break;
+
+  case 1:
+    value = (int) (DAC_8_BITS_TO_6_BITS * m_colour.green + 0.5);
+    break;
+
+  case 2:
+    value = (int) (DAC_8_BITS_TO_6_BITS * m_colour.blue + 0.5);
+    break;
+  }
+  ++m_dacCycleIndex;
+  if (m_dacCycleIndex == 3) {
+    ++m_dacReadIndex;
+    m_dacCycleIndex = 0;
+    m_colour = m_videoOutputController.dacColour (m_dacReadIndex);
+  }
+  return value;
 }
 
 int VideoCard::readGraphicsRegister (void) const {
@@ -158,10 +250,10 @@ int VideoCard::readGraphicsRegister (void) const {
 int VideoCard::readSequencerRegister (void) const {
   int value;
   switch (m_sequencerRegisterIndex) {
-    /*
   case 1:
-    //bit 0 altijd 1.
-    */
+    value = m_videoOutputController.screenOff () << 5;
+    value |= 1; /* bit 0: 9/8 dot mode, to be implemented later.  */
+    return value;
 
   case 2:
     return m_videoMemory.writePlaneEnable ();
@@ -174,6 +266,40 @@ int VideoCard::readSequencerRegister (void) const {
     return value;
   }
   return 0xFF;
+}
+
+void VideoCard::writeAttributeRegister (uint8_t value) {
+  if (m_attributeRegisterIndex < 0x10) {
+    m_videoOutputController.paletteRegister (m_attributeRegisterIndex, value);
+  } else if (m_attributeRegisterIndex == 0x10) {
+    m_videoOutputController.allColourSelectBitsEnabled ((value & 0x80) != 0);
+    m_videoOutputController.widePixels ((value & 0x40) != 0);
+  } else if (m_attributeRegisterIndex == 0x14) {
+    m_videoOutputController.colourSelect (value);
+  }
+}
+
+void VideoCard::writeDacValue (uint8_t value) {
+  value &= 0x3F;
+  switch (m_dacCycleIndex) {
+  case 0:
+    m_colour.red = (int) (DAC_6_BITS_TO_8_BITS * value + 0.5);
+    break;
+
+  case 1:
+    m_colour.green = (int) (DAC_6_BITS_TO_8_BITS * value + 0.5);
+    break;
+
+  case 2:
+    m_colour.blue = (int) (DAC_6_BITS_TO_8_BITS * value + 0.5);
+    break;
+  }
+  ++m_dacCycleIndex;
+  if (m_dacCycleIndex == 3) {
+    m_videoOutputController.dacColour (m_dacWriteIndex, m_colour);
+    m_dacCycleIndex = 0;
+    ++m_dacWriteIndex;
+  }
 }
 
 void VideoCard::writeGraphicsRegister (uint8_t value) {
@@ -222,10 +348,10 @@ void VideoCard::writeGraphicsRegister (uint8_t value) {
 
 void VideoCard::writeSequencerRegister (uint8_t value) {
   switch (m_sequencerRegisterIndex) {
-    /*
   case 1:
+    m_videoOutputController.screenOff ((value & 0x20) != 0);
+    /* bit 0: 9/8 dot mode, to be implemented later.  */
     break;
-    */
 
   case 2:
     m_videoMemory.writePlaneEnable (value);

@@ -31,7 +31,13 @@ private:
   std::thread m_videoOutputThread;
   int m_graphicsRegisterIndex;
   int m_sequencerRegisterIndex;
-  int m_attributeControllerRegisterIndex;
+  int m_attributeRegisterIndex;
+  bool m_attributeDataWrite;
+  uint8_t m_dacReadIndex;
+  uint8_t m_dacWriteIndex;
+  uint8_t m_dacState;
+  uint8_t m_dacCycleIndex;
+  Colour m_colour;
 
 public:
   explicit VideoCard (Renderer& renderer);
@@ -51,8 +57,12 @@ public:
   VideoMemory& videoMemory (void);
 
 private:
+  int readAttributeRegister (void) const;
+  int readDacValue (void);
   int readGraphicsRegister (void) const;
   int readSequencerRegister (void) const;
+  void writeAttributeRegister (uint8_t value);
+  void writeDacValue (uint8_t value);
   void writeGraphicsRegister (uint8_t value);
   void writeSequencerRegister (uint8_t value);
 };

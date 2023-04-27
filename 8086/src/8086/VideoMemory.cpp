@@ -74,16 +74,15 @@ VideoMemory::~VideoMemory (void) {
     @param widthInCharacters the width in characters of a line; in 256 colour modes the value
         should be doubled, which is how it is already stored in register 3D4, 1 (except that
         the value in that register is one too few).
-    @param heightInScanLines the height in scanlines.
-    @return true if the pixels were created.  */
-bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines) {
+    @param heightInScanLines the height in scanlines.  */
+void VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines) {
   if (!m_graphicsMode) {
     getPixelsAlphanumeric (dst, widthInCharacters, heightInScanLines);
-    return true;
+    return;
   }
   if (m_cgaAddressing) {
     getPixelsCgaAddressing (dst, widthInCharacters, heightInScanLines);
-    return true;
+    return;
   }
 
   int count = widthInCharacters * heightInScanLines;
@@ -99,7 +98,6 @@ bool VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInSc
   default:
     getPixels256Shift (dst, 0, 0, count);
   }
-  return true;
 }
 
 int VideoMemory::readByte (int index) {
