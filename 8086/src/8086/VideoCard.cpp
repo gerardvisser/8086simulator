@@ -24,7 +24,7 @@
 static constexpr double DAC_6_BITS_TO_8_BITS = 255.0 / 63;
 static constexpr double DAC_8_BITS_TO_6_BITS = 63.0 / 255;
 
-VideoCard::VideoCard (Renderer& renderer) : m_videoOutputController (renderer, m_videoMemory) {
+VideoCard::VideoCard (void) : m_videoOutputController (m_videoMemory) {
   m_graphicsRegisterIndex = 0;
   m_sequencerRegisterIndex = 0;
   m_crtRegisterIndex = 0;
@@ -34,14 +34,9 @@ VideoCard::VideoCard (Renderer& renderer) : m_videoOutputController (renderer, m
   m_dacWriteIndex = 0;
   m_dacState = 3;
   m_dacCycleIndex = 0;
-  m_videoOutputThread = std::move (std::thread (std::ref (m_videoOutputController)));
 }
 
 VideoCard::~VideoCard (void) {
-  m_videoOutputController.stopVideoOutputThread ();
-  if (m_videoOutputThread.joinable ()) {
-    m_videoOutputThread.join ();
-  }
 }
 
 /*
@@ -120,6 +115,10 @@ int VideoCard::readByte (uint16_t port) {
 
 VideoMemory& VideoCard::videoMemory (void) {
   return m_videoMemory;
+}
+
+VideoOutputController& VideoCard::videoOutputController (void) {
+  return m_videoOutputController;
 }
 
 void VideoCard::writeByte (uint16_t port, uint8_t value) {

@@ -20,7 +20,6 @@
 #ifndef __VIDEO_CARD_INCLUDED
 #define __VIDEO_CARD_INCLUDED
 
-#include <thread>
 #include <8086/Memory.h>
 #include <8086/VideoOutputController.h>
 
@@ -28,7 +27,6 @@ class VideoCard {
 private:
   VideoMemory m_videoMemory;
   VideoOutputController m_videoOutputController;
-  std::thread m_videoOutputThread;
   int m_graphicsRegisterIndex;
   int m_sequencerRegisterIndex;
   int m_crtRegisterIndex;
@@ -41,7 +39,7 @@ private:
   Colour m_colour;
 
 public:
-  explicit VideoCard (Renderer& renderer);
+  VideoCard (void);
 
   VideoCard (const VideoCard&) = delete;
   VideoCard (VideoCard&&) = delete;
@@ -54,6 +52,7 @@ public:
   void loadRom (Memory& memory);
   int readByte (uint16_t port);
   VideoMemory& videoMemory (void);
+  VideoOutputController& videoOutputController (void);
   void writeByte (uint16_t port, uint8_t value);
   void writeWord (uint16_t port, int value);
 

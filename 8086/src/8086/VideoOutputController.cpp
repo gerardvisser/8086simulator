@@ -18,15 +18,11 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <cstdlib>
-#include <thread>
 #include <8086/VideoOutputController.h>
 
-using namespace std::chrono_literals;
-
-VideoOutputController::VideoOutputController (Renderer& renderer, VideoMemory& videoMemory) : m_renderer (renderer), m_videoMemory (videoMemory) {
+VideoOutputController::VideoOutputController (VideoMemory& videoMemory) : m_videoMemory (videoMemory) {
   m_dac = new Colour[0x100];
   m_pixels = (uint8_t*) malloc (0x80000);
-  m_videoOutputThreadToBeStopped = false;
   m_screenDisabled = true;
   m_screenOff = true;
   m_paletteAddressSource = false;
@@ -48,33 +44,28 @@ VideoOutputController::~VideoOutputController (void) {
   delete[] m_dac;
 }
 
-void VideoOutputController::operator() (void) {
-  while (!m_videoOutputThreadToBeStopped) {
-    drawScreen ();
-    std::this_thread::sleep_for (250ms);
-  }
-}
-
-void VideoOutputController::drawScreen (void) {
+void VideoOutputController::drawScreen (Renderer& renderer) {
   std::lock_guard<std::mutex> lock (m_mutex);
+
+  renderer.setDrawColour (Colour::BLACK);
+  renderer.clear ();
+
   if (!m_screenDisabled) {
+
     int width = m_horizontalEnd + 1;
     int height = heightInScanLines ();
     m_videoMemory.getPixels (m_pixels, width, height);
 
-    m_renderer.setDrawColour (Colour::BLACK);
-    m_renderer.clear ();
-
     width <<= 3 - m_widePixels; /* width in pixels */
-    m_renderer.setResolution (width, height);
+    renderer.setResolution (width, height);
     if (m_widePixels) {
       for (int h = 0; h < height; ++h) {
         for (int w = 0; w < width; ++w) {
           int index = 2 * (width * h + w);
           int colourIndex = m_pixels[index] << 4;
           colourIndex |= m_pixels[index + 1];
-          m_renderer.setDrawColour (m_dac[colourIndex]);
-          m_renderer.drawPoint (w, h);
+          renderer.setDrawColour (m_dac[colourIndex]);
+          renderer.drawPoint (w, h);
         }
       }
     } else {
@@ -91,14 +82,14 @@ void VideoOutputController::drawScreen (void) {
           int colourIndex = m_paletteRegisters[m_pixels[width * h + w]];
           colourIndex &= mask;
           colourIndex |= highBits;
-          m_renderer.setDrawColour (m_dac[colourIndex]);
-          m_renderer.drawPoint (w, h);
+          renderer.setDrawColour (m_dac[colourIndex]);
+          renderer.drawPoint (w, h);
         }
       }
     }
-    m_renderer.present ();
 
   }
+  renderer.present ();
 }
 
 int VideoOutputController::heightInScanLines (void) {
@@ -114,20 +105,9 @@ int VideoOutputController::heightInScanLines (void) {
 
 void VideoOutputController::screenDisabled (bool val) {
   if (val != m_screenDisabled) {
-    if (val) {
-      std::lock_guard<std::mutex> lock (m_mutex);
-      m_renderer.setDrawColour (Colour::BLACK);
-      m_renderer.clear ();
-      m_renderer.present ();
-      m_screenDisabled = true;
-    } else {
-      m_screenDisabled = false;
-    }
+    std::lock_guard<std::mutex> lock (m_mutex);
+    m_screenDisabled = val;
   }
-}
-
-void VideoOutputController::stopVideoOutputThread (void) {
-  m_videoOutputThreadToBeStopped = true;
 }
 
 /* 3C0, 10, bit: 7 */

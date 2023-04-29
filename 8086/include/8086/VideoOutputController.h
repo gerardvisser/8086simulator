@@ -28,11 +28,9 @@ class VideoOutputController {
 private:
   std::mutex m_mutex;
   VideoMemory& m_videoMemory;
-  Renderer& m_renderer;
   uint8_t* m_pixels;
   Colour* m_dac;
   uint8_t m_paletteRegisters[16];
-  bool m_videoOutputThreadToBeStopped;
   bool m_screenDisabled;
   uint8_t m_horizontalEnd;
   uint8_t m_verticalEnd;
@@ -45,7 +43,7 @@ private:
   bool m_paletteAddressSource;
 
 public:
-  VideoOutputController (Renderer& renderer, VideoMemory& videoMemory);
+  explicit VideoOutputController (VideoMemory& videoMemory);
 
   VideoOutputController (const VideoOutputController&) = delete;
   VideoOutputController (VideoOutputController&&) = delete;
@@ -54,10 +52,6 @@ public:
 
   VideoOutputController& operator= (const VideoOutputController&) = delete;
   VideoOutputController& operator= (VideoOutputController&&) = delete;
-
-  void operator() (void);
-
-  void stopVideoOutputThread (void);
 
   bool allColourSelectBitsEnabled (void) const;
   void allColourSelectBitsEnabled (bool val);
@@ -82,8 +76,9 @@ public:
   bool widePixels (void) const;
   void widePixels (bool val);
 
+  void drawScreen (Renderer& renderer);
+
 private:
-  void drawScreen (void);
   int heightInScanLines (void);
   void screenDisabled (bool val);
 };
