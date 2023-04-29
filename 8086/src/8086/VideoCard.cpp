@@ -27,6 +27,7 @@ static constexpr double DAC_8_BITS_TO_6_BITS = 63.0 / 255;
 VideoCard::VideoCard (Renderer& renderer) : m_videoOutputController (renderer, m_videoMemory) {
   m_graphicsRegisterIndex = 0;
   m_sequencerRegisterIndex = 0;
+  m_crtRegisterIndex = 0;
   m_attributeRegisterIndex = 0;
   m_attributeDataWrite = false;
   m_dacReadIndex = 0;
@@ -49,9 +50,9 @@ Offset 0 - 0x10 are reserved for (word) variables:
 0: dacdata offset CGA colours.
 2: dacdata offset EGA colours.
 4: dacdata offset default 256 colours.
-6: 8x8 font
-8: 8x14 font
-A: 8x16 font
+6: 8x8 font offset
+8: 8x14 font offset
+A: 8x16 font offset
 */
 void VideoCard::loadRom (Memory& memory) {
   Address variableAddress (0xC000, 0);
@@ -103,6 +104,16 @@ int VideoCard::readByte (uint16_t port) {
 
   case 0x3CF:
     return readGraphicsRegister ();
+
+  case 0x3D4:
+    return m_crtRegisterIndex;
+
+  case 0x3D5:
+    return readCrtRegister ();
+
+  case 0x3DA:
+    m_attributeDataWrite = false;
+    return 0;
   }
   return 0xFF;
 }
@@ -155,7 +166,20 @@ void VideoCard::writeByte (uint16_t port, uint8_t value) {
   case 0x3CF:
     writeGraphicsRegister (value);
     break;
+
+  case 0x3D4:
+    m_crtRegisterIndex = value;
+    break;
+
+  case 0x3D5:
+    writeCrtRegister (value);
+    break;
   }
+}
+
+void VideoCard::writeWord (uint16_t port, int value) {
+  writeByte (port, value);
+  writeByte (port + 1, value >> 8);
 }
 
 int VideoCard::readAttributeRegister (void) const {
@@ -175,6 +199,32 @@ int VideoCard::readAttributeRegister (void) const {
   return 0xFF;
 }
 
+int VideoCard::readCrtRegister (void) const {
+  int value;
+  switch (m_crtRegisterIndex) {
+  case 1:
+    return m_videoOutputController.horizontalEnd ();
+
+  case 7:
+    return m_videoOutputController.overflowRegister ();
+
+  case 9:
+    value = m_videoOutputController.scanDoubling ();
+    value <<= 1;
+    value |= 1;
+    value <<= 6;
+    /* Bits 4 - 0: maximum scan line.  */
+    return value;
+
+  case 0x12:
+    return m_videoOutputController.verticalEnd ();
+
+  case 0x17:
+    return m_videoMemory.cgaAddressing () ^ 1;
+  }
+  return 0xFF;
+}
+
 int VideoCard::readDacValue (void) {
   int value;
   switch (m_dacCycleIndex) {
@@ -188,7 +238,6 @@ int VideoCard::readDacValue (void) {
 
   case 2:
     value = (int) (DAC_8_BITS_TO_6_BITS * m_colour.blue + 0.5);
-    break;
   }
   ++m_dacCycleIndex;
   if (m_dacCycleIndex == 3) {
@@ -279,6 +328,31 @@ void VideoCard::writeAttributeRegister (uint8_t value) {
   }
 }
 
+void VideoCard::writeCrtRegister (uint8_t value) {
+  switch (m_crtRegisterIndex) {
+  case 1:
+    m_videoOutputController.horizontalEnd (value);
+    break;
+
+  case 7:
+    m_videoOutputController.overflowRegister (value);
+    break;
+
+  case 9:
+    m_videoOutputController.scanDoubling ((value & 0x80) != 0);
+    /* Bits 4 - 0: maximum scan line.  */
+    break;
+
+  case 0x12:
+    m_videoOutputController.verticalEnd (value);
+    break;
+
+  case 0x17:
+    m_videoMemory.cgaAddressing (value & 1 ^ 1);
+    break;
+  }
+}
+
 void VideoCard::writeDacValue (uint8_t value) {
   value &= 0x3F;
   switch (m_dacCycleIndex) {
@@ -292,7 +366,6 @@ void VideoCard::writeDacValue (uint8_t value) {
 
   case 2:
     m_colour.blue = (int) (DAC_6_BITS_TO_8_BITS * value + 0.5);
-    break;
   }
   ++m_dacCycleIndex;
   if (m_dacCycleIndex == 3) {

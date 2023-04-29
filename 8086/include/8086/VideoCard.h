@@ -31,6 +31,7 @@ private:
   std::thread m_videoOutputThread;
   int m_graphicsRegisterIndex;
   int m_sequencerRegisterIndex;
+  int m_crtRegisterIndex;
   int m_attributeRegisterIndex;
   bool m_attributeDataWrite;
   uint8_t m_dacReadIndex;
@@ -52,16 +53,18 @@ public:
 
   void loadRom (Memory& memory);
   int readByte (uint16_t port);
-  void writeByte (uint16_t port, uint8_t value);
-
   VideoMemory& videoMemory (void);
+  void writeByte (uint16_t port, uint8_t value);
+  void writeWord (uint16_t port, int value);
 
 private:
   int readAttributeRegister (void) const;
+  int readCrtRegister (void) const;
   int readDacValue (void);
   int readGraphicsRegister (void) const;
   int readSequencerRegister (void) const;
   void writeAttributeRegister (uint8_t value);
+  void writeCrtRegister (uint8_t value);
   void writeDacValue (uint8_t value);
   void writeGraphicsRegister (uint8_t value);
   void writeSequencerRegister (uint8_t value);
