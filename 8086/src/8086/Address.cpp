@@ -25,3 +25,51 @@ Address::Address (uint16_t segment, uint16_t offset) : segment (segment), offset
 Address::operator int (void) const {
   return (((int) segment << 4) + offset) & 0xFFFFF;
 }
+
+Address Address::operator+ (int x) const {
+  return Address (segment, offset + x);
+}
+
+Address operator+ (int x, Address address) {
+  return address + x;
+}
+
+Address Address::operator- (int x) const {
+  return Address (segment, offset - x);
+}
+
+Address operator- (int x, Address address) {
+  return address - x;
+}
+
+Address& Address::operator+= (int x) {
+  offset += x;
+  return *this;
+}
+
+Address& Address::operator-= (int x) {
+  offset -= x;
+  return *this;
+}
+
+Address& Address::operator++ (void) {
+  ++offset;
+  return *this;
+}
+
+Address Address::operator++ (int) {
+  Address result = *this;
+  ++offset;
+  return result;
+}
+
+Address& Address::operator-- (void) {
+  --offset;
+  return *this;
+}
+
+Address Address::operator-- (int) {
+  Address result = *this;
+  --offset;
+  return result;
+}

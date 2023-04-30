@@ -30,6 +30,17 @@ public:
   explicit Address (uint16_t segment = 0, uint16_t offset = 0);
 
   operator int (void) const;
+  Address operator+ (int x) const;
+  Address operator- (int x) const;
+  Address& operator+= (int x);
+  Address& operator-= (int x);
+  Address& operator++ (void);
+  Address operator++ (int);
+  Address& operator-- (void);
+  Address operator-- (int);
 };
+
+Address operator+ (int x, Address address);
+Address operator- (int x, Address address);
 
 #endif

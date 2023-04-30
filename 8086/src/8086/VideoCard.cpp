@@ -54,20 +54,20 @@ void VideoCard::loadRom (Memory& memory) {
   Address dataAddress (0xC000, 0x10);
 
   memory.writeWord (variableAddress, dataAddress.offset);
-  variableAddress.offset += 2;
+  variableAddress += 2;
   memory.writeWord (variableAddress, dataAddress.offset + 0xC0);
-  variableAddress.offset += 2;
+  variableAddress += 2;
   memory.writeWord (variableAddress, dataAddress.offset + 0x180);
-  variableAddress.offset += 2;
+  variableAddress += 2;
   memory.writeBytes (dataAddress, rom::dacData, 1152);
-  dataAddress.offset += 1152;
+  dataAddress += 1152;
 
   memory.writeWord (variableAddress, dataAddress.offset);
-  variableAddress.offset += 2;
+  variableAddress += 2;
   memory.writeWord (variableAddress, dataAddress.offset + 0x800);
-  variableAddress.offset += 2;
+  variableAddress += 2;
   memory.writeWord (variableAddress, dataAddress.offset + 0x1600);
-  variableAddress.offset += 2;
+  variableAddress += 2;
   memory.writeBytes (dataAddress, rom::font, 9728);
 }
 
