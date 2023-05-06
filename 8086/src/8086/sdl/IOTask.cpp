@@ -35,7 +35,7 @@ void IOTask::operator() (void) {
   SDL_Init (SDL_INIT_VIDEO);
 
   {
-    SdlWindow window (m_windowTitle, 0, 0, 1280, 960);
+    SdlWindow window (m_windowTitle, 0, 0, 1440, 960);
     Renderer& renderer = window.renderer ();
 
     while (!m_videoThreadToBeStopped) {

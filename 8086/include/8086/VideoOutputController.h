@@ -34,10 +34,13 @@ private:
   bool m_screenDisabled;
   uint8_t m_horizontalEnd;
   uint8_t m_verticalEnd;
+  uint8_t m_horizontalTotal;
+  uint8_t m_verticalTotal;
   uint8_t m_overflowRegister;
   uint8_t m_colourSelect;
   bool m_scanDoubling;
   bool m_widePixels;
+  bool m_narrowChars;
   bool m_allColourSelectBitsEnabled;
   bool m_screenOff;
   bool m_paletteAddressSource;
@@ -61,6 +64,10 @@ public:
   void dacColour (int index, const Colour& val);
   uint8_t horizontalEnd (void) const;
   void horizontalEnd (uint8_t val);
+  uint8_t horizontalTotal (void) const;
+  void horizontalTotal (uint8_t val);
+  bool narrowChars (void) const;
+  void narrowChars (bool val);
   uint8_t overflowRegister (void) const;
   void overflowRegister (uint8_t val);
   bool paletteAddressSource (void) const;
@@ -73,13 +80,14 @@ public:
   void screenOff (bool val);
   uint8_t verticalEnd (void) const;
   void verticalEnd (uint8_t val);
+  uint8_t verticalTotal (void) const;
+  void verticalTotal (uint8_t val);
   bool widePixels (void) const;
   void widePixels (bool val);
 
   void drawScreen (Renderer& renderer);
 
 private:
-  int heightInScanLines (void);
   void screenDisabled (bool val);
 };
 

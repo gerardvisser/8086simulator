@@ -201,8 +201,14 @@ int VideoCard::readAttributeRegister (void) const {
 int VideoCard::readCrtRegister (void) const {
   int value;
   switch (m_crtRegisterIndex) {
+  case 0:
+    return m_videoOutputController.horizontalTotal ();
+
   case 1:
     return m_videoOutputController.horizontalEnd ();
+
+  case 6:
+    return m_videoOutputController.verticalTotal ();
 
   case 7:
     return m_videoOutputController.overflowRegister ();
@@ -300,7 +306,7 @@ int VideoCard::readSequencerRegister (void) const {
   switch (m_sequencerRegisterIndex) {
   case 1:
     value = m_videoOutputController.screenOff () << 5;
-    value |= 1; /* bit 0: 9/8 dot mode, to be implemented later.  */
+    value |= m_videoOutputController.narrowChars ();
     return value;
 
   case 2:
@@ -329,8 +335,16 @@ void VideoCard::writeAttributeRegister (uint8_t value) {
 
 void VideoCard::writeCrtRegister (uint8_t value) {
   switch (m_crtRegisterIndex) {
+  case 0:
+    m_videoOutputController.horizontalTotal (value);
+    break;
+
   case 1:
     m_videoOutputController.horizontalEnd (value);
+    break;
+
+  case 6:
+    m_videoOutputController.verticalTotal (value);
     break;
 
   case 7:
@@ -422,7 +436,7 @@ void VideoCard::writeSequencerRegister (uint8_t value) {
   switch (m_sequencerRegisterIndex) {
   case 1:
     m_videoOutputController.screenOff ((value & 0x20) != 0);
-    /* bit 0: 9/8 dot mode, to be implemented later.  */
+    m_videoOutputController.narrowChars (value & 1);
     break;
 
   case 2:
