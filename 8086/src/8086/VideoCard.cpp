@@ -188,9 +188,10 @@ int VideoCard::readAttributeRegister (void) const {
     int value = m_videoOutputController.allColourSelectBitsEnabled ();
     value <<= 1;
     value |= m_videoOutputController.widePixels ();
-    value <<= 6;
+    value <<= 4;
+    value |= m_videoMemory.lineGraphicsEnable ();
+    value <<= 2;
     value |= m_videoMemory.graphicsMode ();
-    /* Bit 2: Line graphics enable to be implemented later.  */
     return value;
   } else if (m_attributeRegisterIndex == 0x14) {
     return m_videoOutputController.colourSelect ();
@@ -218,7 +219,7 @@ int VideoCard::readCrtRegister (void) const {
     value <<= 1;
     value |= 1;
     value <<= 6;
-    /* Bits 4 - 0: maximum scan line.  */
+    value |= m_videoMemory.maxScanLine ();
     return value;
 
   case 0x12:
@@ -328,6 +329,7 @@ void VideoCard::writeAttributeRegister (uint8_t value) {
   } else if (m_attributeRegisterIndex == 0x10) {
     m_videoOutputController.allColourSelectBitsEnabled ((value & 0x80) != 0);
     m_videoOutputController.widePixels ((value & 0x40) != 0);
+    m_videoMemory.lineGraphicsEnable ((value & 0x04) != 0);
   } else if (m_attributeRegisterIndex == 0x14) {
     m_videoOutputController.colourSelect (value);
   }
@@ -353,7 +355,7 @@ void VideoCard::writeCrtRegister (uint8_t value) {
 
   case 9:
     m_videoOutputController.scanDoubling ((value & 0x80) != 0);
-    /* Bits 4 - 0: maximum scan line.  */
+    m_videoMemory.maxScanLine (value);
     break;
 
   case 0x12:

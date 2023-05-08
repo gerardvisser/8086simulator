@@ -61,8 +61,10 @@ VideoMemory::VideoMemory (void) {
   m_memoryMapSelect = 1;
   m_memoryMode = PLANAR;
   m_shiftMode = SINGLE_SHIFT;
+  m_maxScanLine = 0;
   m_cgaAddressing = false;
   m_graphicsMode = true;
+  m_lineGraphicsEnable = false;
 }
 
 VideoMemory::~VideoMemory (void) {
@@ -283,6 +285,15 @@ void VideoMemory::graphicsMode (bool val) {
   m_graphicsMode = val;
 }
 
+/* 3C0, 10, bit: 2 */
+bool VideoMemory::lineGraphicsEnable (void) const {
+  return m_lineGraphicsEnable;
+}
+
+void VideoMemory::lineGraphicsEnable (bool val) {
+  m_lineGraphicsEnable = val;
+}
+
 /* 3CE, 3, bits: 4, 3 */
 uint8_t VideoMemory::logicalOperation (void) const {
   return m_logicalOperation;
@@ -290,6 +301,15 @@ uint8_t VideoMemory::logicalOperation (void) const {
 
 void VideoMemory::logicalOperation (uint8_t val) {
   m_logicalOperation = val & 0x3;
+}
+
+/* 3D4, 9, bits: 4, 3, 2, 1, 0 */
+uint8_t VideoMemory::maxScanLine (void) const {
+  return m_maxScanLine;
+}
+
+void VideoMemory::maxScanLine (uint8_t val) {
+  m_maxScanLine = val & 0x1F;
 }
 
 /* 3CE, 6, bits: 3, 2 */
@@ -448,7 +468,7 @@ void VideoMemory::getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, in
   }
 }
 
-void VideoMemory::getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, int heightInScanLines) const {
+void VideoMemory::getPixelsCgaAddressing (uint8_t* dst, int widthIn8PixelUnits, int heightInScanLines) const {
   void (VideoMemory::*getPixels) (uint8_t*, int, int, int) const;
   switch (m_shiftMode) {
   case SINGLE_SHIFT:
@@ -470,15 +490,17 @@ void VideoMemory::getPixelsCgaAddressing (uint8_t* dst, int widthInCharacters, i
 
   int dstOff = 0;
   int srcOff = 0;
-  for (int scanLine = 0; scanLine < heightInScanLines; ++scanLine) {
-    (this->*getPixels) (dst, dstOff, srcOff, widthInCharacters);
-    dstOff += widthInCharacters << 3;
-    srcOff += widthInCharacters;
-    if ((scanLine & 1) != 0) {
-      srcOff -= offset8kiB;
-    } else {
-      srcOff += offset8kiB - widthInCharacters;
+  int scanLine = 0;
+  int adjustSrcOff = 0;
+  const int pixelsPerLine = widthIn8PixelUnits << 3;
+  while (scanLine < heightInScanLines) {
+    for (int i = -1; i < m_maxScanLine && scanLine < heightInScanLines; ++i) {
+      (this->*getPixels) (dst, dstOff, srcOff + adjustSrcOff * offset8kiB, widthIn8PixelUnits);
+      dstOff += pixelsPerLine;
+      adjustSrcOff ^= 1;
+      ++scanLine;
     }
+    srcOff += widthIn8PixelUnits;
   }
 }
 

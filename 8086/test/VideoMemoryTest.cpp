@@ -74,6 +74,7 @@ void test::getPixels_256Shift_chain4_cgaAddressing (void) {
   videoMem.shiftMode (_256_SHIFT);
   videoMem.memoryMode (CHAIN_4);
   videoMem.cgaAddressing (true);
+  videoMem.maxScanLine (1);
 
   for (int i = 0; i < 80; ++i) {
     videoMem.writeByte (i, 0x11);
@@ -146,6 +147,7 @@ void test::getPixels_interleavedShift_oddEven_cgaAddressing (void) {
   videoMem.shiftMode (INTERLEAVED_SHIFT);
   videoMem.memoryMode (ODD_EVEN);
   videoMem.cgaAddressing (true);
+  videoMem.maxScanLine (1);
   videoMem.writePlaneEnable (0x3);
 
   for (int i = 0; i < 80; ++i) {
@@ -229,6 +231,7 @@ void test::getPixels_singleShift_planar_cgaAddressing (void) {
   videoMem.shiftMode (SINGLE_SHIFT);
   videoMem.memoryMode (PLANAR);
   videoMem.cgaAddressing (true);
+  videoMem.maxScanLine (1);
 
   videoMem.writeMode (2);
   for (int i = 0; i < 80; ++i) {

@@ -1,3 +1,22 @@
+/*
+   Author:  Gerard Visser
+   e-mail:  visser.gerard(at)gmail.com
+
+   Copyright (C) 2023 Gerard Visser.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 3 of the License, or
+   (at your option) any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+
 #include <cstdio>
 #include <iostream>
 #include <string>
@@ -13,15 +32,15 @@ int main (int argc, char** args, char** env) {
   VideoCard& videoCard = machine.videoCard ();
   Memory& memory = machine.memory ();
 
-  videoModes::setMode (videoCard, memory, 0x3);
-  //videoCard.writeWord (0x3D4, 0x4009);
-  //writeSomePixels04 (memory/*, videoCard*/);
+  videoModes::setMode (videoCard, memory, 0x4);
+  //videoCard.writeWord (0x3D4, 0xC109);
+  writeSomePixels04 (memory/*, videoCard*/);
 
   string input;
   printf ("> ");
   getline (std::cin, input);
   while (input != "quit") {
-    printString (memory, input);
+    //printString (memory, input);
 
     printf ("> ");
     getline (std::cin, input);
