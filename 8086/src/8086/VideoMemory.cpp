@@ -36,7 +36,6 @@
 #define UNDEFINED_SHIFT_MODE 3
 
 #define CHAR_BITMAP_DISTANCE       32
-#define TEXT_MODE_CHARACTER_HEIGHT 16
 
 static const uint32_t colcmp[] = {
   0xFFFFFFFF, 0xFFFFFF00, 0xFFFF00FF, 0xFFFF0000, 0xFF00FFFF, 0xFF00FF00, 0xFF0000FF, 0xFF000000,
@@ -71,19 +70,27 @@ VideoMemory::~VideoMemory (void) {
   free (m_buffer);
 }
 
-/*  Characters are always 8 pixels wide.
+/*
     @param dst the destination array, which should be at least 512kiB big.
     @param widthInCharacters the width in characters of a line; in 256 colour modes the value
         should be doubled, which is how it is already stored in register 3D4, 1 (except that
         the value in that register is one too few).
-    @param heightInScanLines the height in scanlines.  */
-void VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines) {
+    @param heightInScanLines the height in scanlines.
+    @param narrowChars whether characters are 8 pixels (true) or 9 pixels (false) wide.  */
+void VideoMemory::getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines, bool narrowChars) {
   if (!m_graphicsMode) {
-    getPixelsAlphanumeric (dst, widthInCharacters, heightInScanLines);
+    getPixelsAlphanumeric (dst, widthInCharacters, heightInScanLines, narrowChars);
     return;
+  }
+  if (!narrowChars) {
+    widthInCharacters = widthInCharacters * 9 / 8;
   }
   if (m_cgaAddressing) {
     getPixelsCgaAddressing (dst, widthInCharacters, heightInScanLines);
+    return;
+  }
+  if (m_maxScanLine > 0) {
+    getPixelsMaxScanLineNotNil (dst, widthInCharacters, heightInScanLines);
     return;
   }
 
@@ -441,9 +448,11 @@ void VideoMemory::getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int c
   }
 }
 
-void VideoMemory::getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, int heightInScanLines) const {
-  const int heightInRows = heightInScanLines / TEXT_MODE_CHARACTER_HEIGHT;
-  const int nextScanLine = 8 * (widthInCharacters - 1);
+void VideoMemory::getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, int heightInScanLines, bool narrowChars) const {
+  const int charHeight = m_maxScanLine + 1;
+  const int charWidth = narrowChars ? 8 : 9;
+  const int heightInRows = heightInScanLines / charHeight;
+  const int nextScanLine = charWidth * (widthInCharacters - 1);
 
   for (int row = 0; row < heightInRows; ++row) {
     for (int column = 0; column < widthInCharacters; ++column) {
@@ -453,12 +462,20 @@ void VideoMemory::getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, in
       character &= 0xFF;
 
       int bitmapOffset = character * CHAR_BITMAP_DISTANCE;
-      int dstOff = 8 * (widthInCharacters * TEXT_MODE_CHARACTER_HEIGHT * row + column);
-      for (int line = 0; line < TEXT_MODE_CHARACTER_HEIGHT; ++line) {
+      int dstOff = charWidth * (widthInCharacters * charHeight * row + column);
+      for (int line = 0; line < charHeight; ++line) {
         uint32_t mask = 0x800000;
         for (int i = 0; i < 8; ++i) {
           dst[dstOff] = (m_buffer[bitmapOffset] & mask) != 0 ? foregroundColour : backgroundColour;
           mask >>= 1;
+          ++dstOff;
+        }
+        if (!narrowChars) {
+          if (m_lineGraphicsEnable && character >= 0xC0 && character < 0xE0) {
+            dst[dstOff] = dst[dstOff - 1];
+          } else {
+            dst[dstOff] = backgroundColour;
+          }
           ++dstOff;
         }
         dstOff += nextScanLine;
@@ -541,6 +558,36 @@ void VideoMemory::getPixelsInterleavedShift (uint8_t* dst, int dstOff, int srcOf
       ++dstOff;
     }
     ++srcOff;
+  }
+}
+
+void VideoMemory::getPixelsMaxScanLineNotNil (uint8_t* dst, int widthIn8PixelUnits, int heightInScanLines) const {
+  void (VideoMemory::*getPixels) (uint8_t*, int, int, int) const;
+  switch (m_shiftMode) {
+  case SINGLE_SHIFT:
+    getPixels = &VideoMemory::getPixelsSingleShift;
+    break;
+  case INTERLEAVED_SHIFT:
+    getPixels = &VideoMemory::getPixelsInterleavedShift;
+    break;
+  default:
+    getPixels = &VideoMemory::getPixels256Shift;
+  }
+
+  int dstOff = 0;
+  int srcOff = 0;
+  int scanLine = 0;
+  const int pixelsPerLine = widthIn8PixelUnits << 3;
+  while (scanLine < heightInScanLines) {
+    (this->*getPixels) (dst, dstOff, srcOff, widthIn8PixelUnits);
+    dstOff += pixelsPerLine;
+    srcOff += widthIn8PixelUnits;
+    ++scanLine;
+    for (int i = 0; i < m_maxScanLine && scanLine < heightInScanLines; ++i) {
+      memcpy (dst + dstOff, dst + dstOff - pixelsPerLine, pixelsPerLine);
+      dstOff += pixelsPerLine;
+      ++scanLine;
+    }
   }
 }
 

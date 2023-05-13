@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <style type="text/css">
+      div.hspace {
+        display: inline-block;
+        width: 25px;
+      }
+      div.inlineblock {
+        display: inline-block;
+        vertical-align: top;
+      }
+      span.blue {
+        color: #0000E0;
+      }
+      span.cyan {
+        color: #00B0B0;
+      }
+      span.red {
+        color: #E00000;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      td {
+        background-color: #FFFFFF;
+        border-color: #000000;
+        border-style: solid;
+        border-width: 1px;
+        font-family: monospace;
+        font-size: 16px;
+        padding: 3px;
+        text-align: center;
+      }
+      td.flagbit {
+        width: 24px;
+      }
+      td.head {
+        background-color: #D0D0D0;
+      }
+      td.noborder {
+        border-color: #FFFFFF;
+        text-align: left;
+      }
+      td.opt {
+        color: #707070;
+      }
+      tr.example td {
+        background-color: #B0FFB0;
+      }
+      tr.example td.head {
+        background-color: #80D080;
+        text-align: left;
+      }
+      tr.exception td {
+        background-color: #FFA8B0;
+      }
+      tr.exception td.head {
+        background-color: #D07880;
+        text-align: left;
+      }
+      tr.prefix td {
+        background-color: #E0E0E0;
+      }
+      tr.prefix td.head {
+        background-color: #B0B0B0;
+      }
+      tr.unsure td {
+        background-color: #FFFF90;
+      }
+      tr.unsure td.head {
+        background-color: #D0D070;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">Byte</td>
+          <td class="head">7</td>
+          <td class="head">6</td>
+          <td class="head">5</td>
+          <td class="head">4</td>
+          <td class="head">3</td>
+          <td class="head">2</td>
+          <td class="head">1</td>
+          <td class="head">0</td>
+          <td class="noborder"></td>
+        </tr>
+        <tr>
+          <td class="head">1</td>
+          <td colspan="6">opcode</td>
+          <td><var>d</var></td>
+          <td>w</td>
+          <td class="noborder">Opcode byte</td>
+        </tr>
+        <tr>
+          <td class="head">2</td>
+          <td colspan="2">mod</td>
+          <td colspan="3">reg</td>
+          <td colspan="3">r/m</td>
+          <td class="noborder">Addressing mode byte</td>
+        </tr>
+        <tr>
+          <td class="head">3</td>
+          <td colspan="8">[optional]</td>
+          <td class="noborder">Low disp, addr, or data</td>
+        </tr>
+        <tr>
+          <td class="head">4</td>
+          <td colspan="8">[optional]</td>
+          <td class="noborder">High disp, addr, or data</td>
+        </tr>
+        <tr>
+          <td class="head">5</td>
+          <td colspan="8">[optional]</td>
+          <td class="noborder">Low data</td>
+        </tr>
+        <tr>
+          <td class="head">6</td>
+          <td colspan="8">[optional]</td>
+          <td class="noborder">High data</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      Possible meanings for <var>d</var>-bit:
+      <ul>
+        <li><span class="red">0</span>: <span class="red">destination</span> is <var>r/m</var>,<br><span class="red">1</span>: <span class="red">destination</span> is <var>reg</var>.</li>
+        <li><span class="blue">0</span>: <span class="blue">two bytes</span> of immediate data,<br><span class="blue">1</span>: <span class="blue">one byte</span> of immediate data.</li>
+      </ul>
+    </div>
+
+    <br><br>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">reg</td>
+          <td class="head">w=0</td>
+          <td class="head">w=1</td>
+        </tr>
+        <tr>
+          <td>000</td>
+          <td>AL</td>
+          <td>AX</td>
+        </tr>
+        <tr>
+          <td>001</td>
+          <td>CL</td>
+          <td>CX</td>
+        </tr>
+        <tr>
+          <td>010</td>
+          <td>DL</td>
+          <td>DX</td>
+        </tr>
+        <tr>
+          <td>011</td>
+          <td>BL</td>
+          <td>BX</td>
+        </tr>
+        <tr>
+          <td>100</td>
+          <td>AH</td>
+          <td>SP</td>
+        </tr>
+        <tr>
+          <td>101</td>
+          <td>CH</td>
+          <td>BP</td>
+        </tr>
+        <tr>
+          <td>110</td>
+          <td>DH</td>
+          <td>SI</td>
+        </tr>
+        <tr>
+          <td>111</td>
+          <td>BH</td>
+          <td>DI</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">r/m</td>
+          <td class="head">mod = 00</td>
+          <td class="head">mod = 01 or 10</td>
+        </tr>
+        <tr>
+          <td>000</td>
+          <td>DS:[BX+SI]</td>
+          <td>DS:[BX+SI+disp]</td>
+        </tr>
+        <tr>
+          <td>001</td>
+          <td>DS:[BX+DI]</td>
+          <td>DS:[BX+DI+disp]</td>
+        </tr>
+        <tr>
+          <td>010</td>
+          <td>SS:[BP+SI]</td>
+          <td>SS:[BP+SI+disp]</td>
+        </tr>
+        <tr>
+          <td>011</td>
+          <td>SS:[BP+DI]</td>
+          <td>SS:[BP+DI+disp]</td>
+        </tr>
+        <tr>
+          <td>100</td>
+          <td>DS:[SI]</td>
+          <td>DS:[SI+disp]</td>
+        </tr>
+        <tr>
+          <td>101</td>
+          <td>DS:[DI]</td>
+          <td>DS:[DI+disp]</td>
+        </tr>
+        <tr>
+          <td>110</td>
+          <td>DS:address</td>
+          <td>SS:[BP+disp]</td>
+        </tr>
+        <tr>
+          <td>111</td>
+          <td>DS:[BX]</td>
+          <td>DS:[BX+disp]</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">sreg</td>
+          <td class="head">&#xA0;</td>
+        </tr>
+        <tr>
+          <td>00</td>
+          <td>ES</td>
+        </tr>
+        <tr>
+          <td>01</td>
+          <td>CS</td>
+        </tr>
+        <tr>
+          <td>10</td>
+          <td>SS</td>
+        </tr>
+        <tr>
+          <td>11</td>
+          <td>DS</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head flagbit">15</td>
+          <td class="head flagbit">14</td>
+          <td class="head flagbit">13</td>
+          <td class="head flagbit">12</td>
+          <td class="head flagbit">11</td>
+          <td class="head flagbit">10</td>
+          <td class="head flagbit">9</td>
+          <td class="head flagbit">8</td>
+          <td class="head flagbit">7</td>
+          <td class="head flagbit">6</td>
+          <td class="head flagbit">5</td>
+          <td class="head flagbit">4</td>
+          <td class="head flagbit">3</td>
+          <td class="head flagbit">2</td>
+          <td class="head flagbit">1</td>
+          <td class="head flagbit">0</td>
+        </tr>
+        <tr>
+          <td title="always 1 on 8086, 80186; always 0 on later models">1</td>
+          <td title="always 1 on 8086, 80186">1</td>
+          <td title="always 1 on 8086, 80186">1</td>
+          <td title="always 1 on 8086, 80186">1</td>
+          <td title="overflow">o</td>
+          <td title="direction">d</td>
+          <td title="interrupt enable">i</td>
+          <td title="trap (single step)">t</td>
+          <td title="sign">s</td>
+          <td title="zero">z</td>
+          <td>0</td>
+          <td title="adjust">a</td>
+          <td>0</td>
+          <td title="parity">p</td>
+          <td>1</td>
+          <td title="carry">c</td>
+        </tr>
+      </table>
+    </div>
+
+    <hr>
+
+    <h3>Instructions</h3>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">ADD reg,reg</td>
+          <td>00<span class="cyan">000</span>0 <span class="red">1</span> w</td>
+          <td><i>11</i> <span class="red">rrr</span> <i>rrr</i></td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD CX,BX</td>
+          <td>000000 1 1</td>
+          <td>11 001 011</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD CL,BL</td>
+          <td>000000 1 0</td>
+          <td>11 001 011</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">ADD BL,CL</td>
+          <td>000000 0 0</td>
+          <td>11 001 011</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">ADD CL,BL</td>
+          <td>000000 0 0</td>
+          <td>11 011 001</td>
+        </tr>
+
+        <tr>
+          <td class="head">ADD mem,reg</td>
+          <td>00<span class="cyan">000</span>0 <span class="red">0</span> w</td>
+          <td>aa rrr <span class="red">mmm</span></td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD [1234],DX</td>
+          <td>000000 0 1</td>
+          <td>00 010 110</td>
+          <td>0011 0100</td>
+          <td>0001 0010</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD [DI],CX</td>
+          <td>000000 0 1</td>
+          <td>00 001 101</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD [BX-2],CX</td>
+          <td>000000 0 1</td>
+          <td>01 001 111</td>
+          <td>1111 1110</td>
+        </tr>
+
+        <tr>
+          <td class="head">ADD reg,mem</td>
+          <td>00<span class="cyan">000</span>0 <span class="red">1</span> w</td>
+          <td>aa <span class="red">rrr</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD CX,[SI]</td>
+          <td>000000 1 1</td>
+          <td>00 001 100</td>
+        </tr>
+
+        <tr>
+          <td class="head">ADD acc,imm</td>
+          <td>00<span class="cyan">000</span>1 0 w</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD AL,5</td>
+          <td>000001 0 0</td>
+          <td>0000 0101</td>
+        </tr>
+        <tr class="example">
+          <td class="head">ADD AX,5</td>
+          <td>000001 0 1</td>
+          <td>0000 0101</td>
+          <td>0000 0000</td>
+        </tr>
+
+        <tr>
+          <td class="head">ADD reg,imm</td>
+          <td>100000 <span class="blue">d</span> w</td>
+          <td><i>11</i> <span class="cyan">000</span> <i>rrr</i></td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+        <tr>
+          <td class="head">ADD mem,imm</td>
+          <td>100000 <span class="blue">d</span> w</td>
+          <td>aa <span class="cyan">000</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">ADD</td>
+          <td><span class="cyan">000</span></td>
+        </tr>
+        <tr>
+          <td class="head">OR</td>
+          <td><span class="cyan">001</span></td>
+        </tr>
+        <tr>
+          <td class="head">ADC</td>
+          <td><span class="cyan">010</span></td>
+        </tr>
+        <tr>
+          <td class="head">SBB</td>
+          <td><span class="cyan">011</span></td>
+        </tr>
+        <tr>
+          <td class="head">AND</td>
+          <td><span class="cyan">100</span></td>
+        </tr>
+        <tr>
+          <td class="head">SUB</td>
+          <td><span class="cyan">101</span></td>
+        </tr>
+        <tr>
+          <td class="head">XOR</td>
+          <td><span class="cyan">110</span></td>
+        </tr>
+        <tr>
+          <td class="head">CMP</td>
+          <td><span class="cyan">111</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">PUSH sreg</td>
+          <td>00 0ss 110</td>
+        </tr>
+        <tr class="example">
+          <td class="head">PUSH CS</td>
+          <td>00 001 110</td>
+        </tr>
+        <tr>
+          <td class="head">POP sreg</td>
+          <td>00 0ss 111</td>
+        </tr>
+        <tr class="exception">
+          <td class="head">POP CS</td>
+          <td>00 001 111</td>
+        </tr>
+        <tr class="prefix">
+          <td class="head">sreg:</td>
+          <td>00 1ss 110</td>
+        </tr>
+        <tr>
+          <td class="head">DAA</td>
+          <td>00 100 111</td>
+        </tr>
+        <tr>
+          <td class="head">DAS</td>
+          <td>00 101 111</td>
+        </tr>
+        <tr>
+          <td class="head">AAA</td>
+          <td>00 110 111</td>
+        </tr>
+        <tr>
+          <td class="head">AAS</td>
+          <td>00 111 111</td>
+        </tr>
+      </table>
+    </div>
+
+    <br><br>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">MOV reg,reg</td>
+          <td>100010 <span class="red">1</span> w</td>
+          <td><i>11</i> <span class="red">rrr</span> <i>rrr</i></td>
+        </tr>
+
+        <tr>
+          <td class="head">MOV mem,reg</td>
+          <td>100010 <span class="red">0</span> w</td>
+          <td>aa rrr <span class="red">mmm</span></td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">MOV reg,mem</td>
+          <td>100010 <span class="red">1</span> w</td>
+          <td>aa <span class="red">rrr</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">MOV reg,sreg</td>
+          <td>100011 <span class="red">0</span> <b>0</b></td>
+          <td><i>11</i> 0ss <span class="red"><i>rrr</i></span></td>
+        </tr>
+        <tr>
+          <td class="head">MOV sreg,reg</td>
+          <td>100011 <span class="red">1</span> <b>0</b></td>
+          <td><i>11</i> <span class="red">0ss</span> <i>rrr</i></td>
+        </tr>
+        <tr>
+          <td class="head">MOV mem,sreg</td>
+          <td>100011 <span class="red">0</span> <b>0</b></td>
+          <td>aa 0ss <span class="red">mmm</span></td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">MOV sreg,mem</td>
+          <td>100011 <span class="red">1</span> <b>0</b></td>
+          <td>aa <span class="red">0ss</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">MOV acc,mem</td>
+          <td>1010 000w</td>
+          <td>l-disp</td>
+          <td>h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">MOV mem,acc</td>
+          <td>1010 001w</td>
+          <td>l-disp</td>
+          <td>h-disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">MOV reg,imm</td>
+          <td>10 11w rrr</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+        <tr>
+          <td class="head">MOV mem,imm</td>
+          <td>110001 <b>1</b> w</td>
+          <td>aa <span class="">000</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+
+        <tr class="example">
+          <td class="head">MOV WORD PTR [BX+0280],B800</td>
+          <td>110001 1 1</td>
+          <td>10 000 111</td>
+          <td>1000 0000</td>
+          <td>0000 0010</td>
+          <td>0000 0000</td>
+          <td>1011 1000</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">MOV DX,1234</td>
+          <td>110001 1 1</td>
+          <td>11 000 010</td>
+          <td>0011 0100</td>
+          <td>0001 0010</td>
+        </tr>
+        <tr class="example">
+          <td class="head">MOV DX,1234</td>
+          <td>10 111 010</td>
+          <td>0011 0100</td>
+          <td>0001 0010</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">TEST reg,reg</td>
+          <td>100001 <span class="red">0</span> w</td>
+          <td><i>11</i> rrr <span class="red"><i>rrr</i></span></td>
+        </tr>
+
+        <tr>
+          <td class="head">TEST mem,reg</td>
+          <td>100001 <span class="red">0</span> w</td>
+          <td>aa rrr <span class="red">mmm</span></td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">XCHG reg,reg</td>
+          <td>100001 <span class="red">1</span> w</td>
+          <td><i>11</i> <span class="red">rrr</span> <i>rrr</i></td>
+        </tr>
+
+        <tr>
+          <td class="head">XCHG reg,mem</td>
+          <td>100001 <span class="red">1</span> w</td>
+          <td>aa <span class="red">rrr</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">XCHG AX,reg</td>
+          <td>1001 0 rrr</td>
+        </tr>
+        <tr>
+          <td class="head">NOP</td>
+          <td>1001 0 000</td>
+        </tr>
+
+        <tr>
+          <td class="head">TEST acc,imm</td>
+          <td>101010 0 w</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+
+        <tr>
+          <td class="head">TEST reg,imm</td>
+          <td>111101 <b>1</b> w</td>
+          <td><i>11</i> <span class="">000</span> <i>rrr</i></td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+
+        <tr>
+          <td class="head">TEST mem,imm</td>
+          <td>111101 <b>1</b> w</td>
+          <td>aa <span class="">000</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+      </table>
+    </div>
+
+    <br><br>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">INC reg16</td>
+          <td>01 000 rrr</td>
+        </tr>
+        <tr class="example">
+          <td class="head">INC DI</td>
+          <td>01 000 111</td>
+        </tr>
+
+        <tr>
+          <td class="head">DEC reg16</td>
+          <td>01 001 rrr</td>
+        </tr>
+        <tr class="example">
+          <td class="head">DEC SI</td>
+          <td>01 001 110</td>
+        </tr>
+
+        <tr>
+          <td class="head">INC reg</td>
+          <td>11 111 11w</td>
+          <td><i>11</i> 000 <i>rrr</i></td>
+        </tr>
+        <tr>
+          <td class="head">INC mem</td>
+          <td>11 111 11w</td>
+          <td>aa 000 mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr class="example">
+          <td class="head">INC DI</td>
+          <td>11 111 111</td>
+          <td>11 000 111</td>
+        </tr>
+        <tr class="example">
+          <td class="head">INC BH</td>
+          <td>11 111 110</td>
+          <td>11 000 111</td>
+        </tr>
+        <tr class="example">
+          <td class="head">INC WORD PTR [DI+0100]</td>
+          <td>11 111 111</td>
+          <td>10 000 101</td>
+          <td>0000 0000</td>
+          <td>0000 0001</td>
+        </tr>
+        <tr class="example">
+          <td class="head">INC BYTE PTR [DI+0100]</td>
+          <td>11 111 110</td>
+          <td>10 000 101</td>
+          <td>0000 0000</td>
+          <td>0000 0001</td>
+        </tr>
+
+        <tr>
+          <td class="head">DEC reg</td>
+          <td>11 111 11w</td>
+          <td><i>11</i> 001 <i>rrr</i></td>
+        </tr>
+        <tr>
+          <td class="head">DEC mem</td>
+          <td>11 111 11w</td>
+          <td>aa 001 mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">PUSH reg16</td>
+          <td>01 010 rrr</td>
+        </tr>
+        <tr>
+          <td class="head">POP reg16</td>
+          <td>01 011 rrr</td>
+        </tr>
+        <tr>
+          <td class="head">PUSH mem16</td>
+          <td>11 111 111</td>
+          <td>aa 110 mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">POP mem16</td>
+          <td>10 001 111</td>
+          <td>aa 000 mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+
+        <tr class="example">
+          <td class="head">PUSH [BP+SI]</td>
+          <td>11 111 111</td>
+          <td>00 110 010</td>
+        </tr>
+        <tr class="example">
+          <td class="head">PUSH [1234]</td>
+          <td>11 111 111</td>
+          <td>00 110 110</td>
+          <td>0011 0100</td>
+          <td>0001 0010</td>
+        </tr>
+        <tr class="example">
+          <td class="head">PUSH [BX+DI-6]</td>
+          <td>11 111 111</td>
+          <td>01 110 001</td>
+          <td>1111 1010</td>
+        </tr>
+        <tr class="example">
+          <td class="head">PUSH [SI-82]</td>
+          <td>11 111 111</td>
+          <td>10 110 100</td>
+          <td>0111 1110</td>
+          <td>1111 1111</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">PUSH AX</td>
+          <td>11 111 111</td>
+          <td>11 110 000</td>
+        </tr>
+        <tr class="example">
+          <td class="head">PUSH AX</td>
+          <td>01 010 000</td>
+        </tr>
+      </table>
+    </div>
+
+    <br><br>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">ROL reg,1</td>
+          <td>1101 000w</td>
+          <td><i>11</i> <span class="cyan">000</span> <i>rrr</i></td>
+        </tr>
+        <tr>
+          <td class="head">ROL mem,1</td>
+          <td>1101 000w</td>
+          <td>aa <span class="cyan">000</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">ROL reg,CL</td>
+          <td>1101 001w</td>
+          <td><i>11</i> <span class="cyan">000</span> <i>rrr</i></td>
+        </tr>
+        <tr>
+          <td class="head">ROL mem,CL</td>
+          <td>1101 001w</td>
+          <td>aa <span class="cyan">000</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">ROL</td>
+          <td><span class="cyan">000</span></td>
+        </tr>
+        <tr>
+          <td class="head">ROR</td>
+          <td><span class="cyan">001</span></td>
+        </tr>
+        <tr>
+          <td class="head">RCL</td>
+          <td><span class="cyan">010</span></td>
+        </tr>
+        <tr>
+          <td class="head">RCR</td>
+          <td><span class="cyan">011</span></td>
+        </tr>
+        <tr>
+          <td class="head">SHL</td>
+          <td><span class="cyan">100</span></td>
+        </tr>
+        <tr>
+          <td class="head">SHR</td>
+          <td><span class="cyan">101</span></td>
+        </tr>
+        <tr>
+          <td class="head">SAL</td>
+          <td><span class="cyan">110</span></td>
+        </tr>
+        <tr>
+          <td class="head">SAR</td>
+          <td><span class="cyan">111</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <br><br>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">NOT reg</td>
+          <td>1111 011w</td>
+          <td><i>11</i> <span class="cyan">010</span> <i>rrr</i></td>
+        </tr>
+        <tr>
+          <td class="head">NOT mem</td>
+          <td>1111 011w</td>
+          <td>aa <span class="cyan">010</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">NOT</td>
+          <td><span class="cyan">010</span></td>
+        </tr>
+        <tr>
+          <td class="head">NEG</td>
+          <td><span class="cyan">011</span></td>
+        </tr>
+        <tr>
+          <td class="head">MUL</td>
+          <td><span class="cyan">100</span></td>
+        </tr>
+        <tr>
+          <td class="head">IMUL</td>
+          <td><span class="cyan">101</span></td>
+        </tr>
+        <tr>
+          <td class="head">DIV</td>
+          <td><span class="cyan">110</span></td>
+        </tr>
+        <tr>
+          <td class="head">IDIV</td>
+          <td><span class="cyan">111</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <br><br>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td class="head">LEA reg16,mem</td>
+          <td>1000 11<b>0</b>1</td>
+          <td>aa rrr mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">CBW</td>
+          <td>1001 1000</td>
+        </tr>
+        <tr>
+          <td class="head">CWD</td>
+          <td>1001 1001</td>
+        </tr>
+        <tr>
+          <td class="head">CALL ssss:oooo</td>
+          <td>1001 1010</td>
+          <td>l-offset</td>
+          <td>h-offset</td>
+          <td>l-segment</td>
+          <td>h-segment</td>
+        </tr>
+        <tr class="example">
+          <td class="head">CALL 1234:5678</td>
+          <td>1001 1010</td>
+          <td>0111 1000</td>
+          <td>0101 0110</td>
+          <td>0011 0100</td>
+          <td>0001 0010</td>
+        </tr>
+        <tr>
+          <td class="head">WAIT</td>
+          <td>1001 1011</td>
+        </tr>
+        <tr>
+          <td class="head">PUSHF</td>
+          <td>1001 1100</td>
+        </tr>
+        <tr>
+          <td class="head">POPF</td>
+          <td>1001 1101</td>
+        </tr>
+        <tr>
+          <td class="head" title="stores AH into lower bits of flags register">SAHF</td>
+          <td>1001 1110</td>
+        </tr>
+        <tr>
+          <td class="head" title="loads lower bits of flags register into AH">LAHF</td>
+          <td>1001 1111</td>
+        </tr>
+        <tr>
+          <td class="head">MOVS</td>
+          <td>1010 010w</td>
+        </tr>
+        <tr class="example">
+          <td class="head">MOVSB</td>
+          <td>1010 0100</td>
+        </tr>
+        <tr class="example">
+          <td class="head">MOVSW</td>
+          <td>1010 0101</td>
+        </tr>
+        <tr>
+          <td class="head">CMPS</td>
+          <td>1010 011w</td>
+        </tr>
+        <tr>
+          <td class="head">STOS</td>
+          <td>1010 101w</td>
+        </tr>
+        <tr>
+          <td class="head">LODS</td>
+          <td>1010 110w</td>
+        </tr>
+        <tr>
+          <td class="head">SCAS</td>
+          <td>1010 111w</td>
+        </tr>
+
+        <tr>
+          <td class="head">RET</td>
+          <td>1100 0010</td>
+          <td>l-data</td>
+          <td>h-data</td>
+        </tr>
+        <tr>
+          <td class="head">RET</td>
+          <td>1100 0011</td>
+        </tr>
+        <tr>
+          <td class="head">LES reg16,mem32</td>
+          <td>1100 01<b>0</b>0</td>
+          <td>aa rrr mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">LDS reg16,mem32</td>
+          <td>1100 01<b>0</b>1</td>
+          <td>aa rrr mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">RETF</td>
+          <td>1100 1010</td>
+          <td>l-data</td>
+          <td>h-data</td>
+        </tr>
+        <tr>
+          <td class="head">RETF</td>
+          <td>1100 1011</td>
+        </tr>
+        <tr>
+          <td class="head">INT 3</td>
+          <td>1100 1100</td>
+        </tr>
+        <tr>
+          <td class="head">INT</td>
+          <td>1100 1101</td>
+          <td>data</td>
+        </tr>
+        <tr class="example">
+          <td class="head">INT 20</td>
+          <td>1100 1101</td>
+          <td>0010 0000</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">INT 03</td>
+          <td>1100 1101</td>
+          <td>0000 0011</td>
+        </tr>
+        <tr>
+          <td class="head">INTO</td>
+          <td>1100 1110</td>
+        </tr>
+        <tr>
+          <td class="head">IRET</td>
+          <td>1100 1111</td>
+        </tr>
+
+        <tr>
+          <td class="head">AAM</td>
+          <td>1101 0100</td>
+          <td>0000 1010</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">AAM 08</td>
+          <td>1101 0100</td>
+          <td>0000 1000</td>
+        </tr>
+        <tr>
+          <td class="head">AAD</td>
+          <td>1101 0101</td>
+          <td>0000 1010</td>
+        </tr>
+        <tr class="unsure">
+          <td class="head">AAD 08</td>
+          <td>1101 0101</td>
+          <td>0000 1000</td>
+        </tr>
+
+        <tr>
+          <td class="head">XLAT</td>
+          <td>1101 0111</td>
+        </tr>
+
+        <tr>
+          <td class="head">IN acc,port</td>
+          <td>1110 010w</td>
+          <td>port</td>
+        </tr>
+        <tr>
+          <td class="head">OUT port,acc</td>
+          <td>1110 011w</td>
+          <td>port</td>
+        </tr>
+
+        <tr>
+          <td class="head" title="address of next instruction plus displacement">CALL</td>
+          <td>1110 1000</td>
+          <td>l-disp</td>
+          <td>h-disp</td>
+        </tr>
+        <tr>
+          <td class="head" title="address of next instruction plus displacement">JMP</td>
+          <td>1110 1001</td>
+          <td>l-disp</td>
+          <td>h-disp</td>
+        </tr>
+        <tr>
+          <td class="head">JMP ssss:oooo</td>
+          <td>1110 1010</td>
+          <td>l-offset</td>
+          <td>h-offset</td>
+          <td>l-segment</td>
+          <td>h-segment</td>
+        </tr>
+        <tr>
+          <td class="head" title="address of next instruction plus signed displacement">JMP</td>
+          <td>1110 1011</td>
+          <td>disp</td>
+        </tr>
+
+        <tr>
+          <td class="head">IN acc,DX</td>
+          <td>1110 110w</td>
+        </tr>
+        <tr>
+          <td class="head">OUT DX,acc</td>
+          <td>1110 111w</td>
+        </tr>
+
+        <tr class="prefix">
+          <td class="head">LOCK</td>
+          <td>1111 0000</td>
+        </tr>
+        <tr class="prefix">
+          <td class="head">REPNZ</td>
+          <td>1111 0010</td>
+        </tr>
+        <tr class="prefix">
+          <td class="head" title="REP">REPZ</td>
+          <td>1111 0011</td>
+        </tr>
+
+        <tr>
+          <td class="head">HLT</td>
+          <td>1111 0100</td>
+        </tr>
+
+        <tr>
+          <td class="head" title="Inverts carry flag">CMC</td>
+          <td>1111 0101</td>
+        </tr>
+        <tr>
+          <td class="head">CLC</td>
+          <td>1111 1000</td>
+        </tr>
+        <tr>
+          <td class="head">STC</td>
+          <td>1111 1001</td>
+        </tr>
+        <tr>
+          <td class="head">CLI</td>
+          <td>1111 1010</td>
+        </tr>
+        <tr>
+          <td class="head">STI</td>
+          <td>1111 1011</td>
+        </tr>
+        <tr>
+          <td class="head">CLD</td>
+          <td>1111 1100</td>
+        </tr>
+        <tr>
+          <td class="head">STD</td>
+          <td>1111 1101</td>
+        </tr>
+
+        <tr title="Interpreteert word in register of op aangegeven adres, als adres om naartoe te springen.">
+          <td class="head">CALL</td>
+          <td>1111 1111</td>
+          <td>aa 010 r/m</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr title="Interpreteert double word op aangegeven adres, als adres om naartoe te springen; aa=11 levert een ongeldige instructie.">
+          <td class="head">CALL FAR</td>
+          <td>1111 1111</td>
+          <td>aa 011 mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr title="Interpreteert word in register of op aangegeven adres, als adres om naartoe te springen.">
+          <td class="head">JMP</td>
+          <td>1111 1111</td>
+          <td>aa 100 r/m</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+        <tr title="Interpreteert double word op aangegeven adres, als adres om naartoe te springen; aa=11 levert een ongeldige instructie.">
+          <td class="head">JMP FAR</td>
+          <td>1111 1111</td>
+          <td>aa 101 mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+        </tr>
+      </table>
+    </div>
+
+    <h4>Conditional Jumps</h4>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td style="width:130px;" title="o=1">o</td>
+          <td class="head" title="jump on overflow" style="width:70px;">JO</td>
+          <td class="head" style="width:70px;">&#xA0;</td>
+          <td class="head" style="width:70px;">&#xA0;</td>
+          <td style="width:100px;">0111 0000</td>
+          <td style="width:100px;">disp</td>
+        </tr>
+        <tr>
+          <td title="o=0">&#xAC;o</td>
+          <td class="head" title="jump on not overflow">JNO</td>
+          <td class="head">&#xA0;</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 0001</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="c=1">c</td>
+          <td class="head" title="jump on below">JB</td>
+          <td class="head" title="jump on carry">JC</td>
+          <td class="head" title="jump on not above nor equal">JNAE</td>
+          <td>0111 0010</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="c=0">&#xAC;c</td>
+          <td class="head" title="jump on not below">JNB</td>
+          <td class="head" title="jump on not carry">JNC</td>
+          <td class="head" title="jump on above or equal">JAE</td>
+          <td>0111 0011</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="z=1">z</td>
+          <td class="head" title="jump on zero">JZ</td>
+          <td class="head" title="jump on equal">JE</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 0100</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="z=0">&#xAC;z</td>
+          <td class="head" title="jump on not zero">JNZ</td>
+          <td class="head" title="jump on not equal">JNE</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 0101</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="c=1 or z=1">c &#x2228; z</td>
+          <td class="head" title="jump on below or equal">JBE</td>
+          <td class="head" title="jump on not above">JNA</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 0110</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="c=0 and z=0">&#xAC;c &#x2227; &#xAC;z</td>
+          <td class="head" title="jump on above">JA</td>
+          <td class="head" title="jump on not below nor equal">JNBE</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 0111</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="s=1">s</td>
+          <td class="head" title="jump on sign">JS</td>
+          <td class="head">&#xA0;</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1000</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="s=0">&#xAC;s</td>
+          <td class="head" title="jump on not sign">JNS</td>
+          <td class="head">&#xA0;</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1001</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="p=1">p</td>
+          <td class="head" title="jump on parity even">JPE</td>
+          <td class="head" title="jump on parity">JP</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1010</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="p=0">&#xAC;p</td>
+          <td class="head" title="jump on parity odd">JPO</td>
+          <td class="head" title="jump on not parity">JNP</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1011</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="s!=o">s &#x22BB; o</td>
+          <td class="head" title="jump on less">JL</td>
+          <td class="head" title="jump on not greater nor equal">JNGE</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1100</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="s=o">s &#x2194; o</td>
+          <td class="head" title="jump on greater or equal">JGE</td>
+          <td class="head" title="jump on not less">JNL</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1101</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="z=1 or s!=o">z &#x2228; (s &#x22BB; o)</td>
+          <td class="head" title="jump on less or equal">JLE</td>
+          <td class="head" title="jump on not greater">JNG</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1110</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td title="z=0 and s=o">&#xAC;z &#x2227; (s &#x2194; o)</td>
+          <td class="head" title="jump on greater">JG</td>
+          <td class="head" title="jump on not less nor equal">JNLE</td>
+          <td class="head">&#xA0;</td>
+          <td>0111 1111</td>
+          <td>disp</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="hspace"></div>
+
+    <div class="inlineblock">
+      <table>
+        <tr>
+          <td style="width:130px;" title="z=o">&#xAC;z &#x2227; CX &#x2260; 0</td>
+          <td class="head" title="loop while not zero" style="width:70px;">LOOPNZ</td>
+          <td class="head" title="loop while not equal" style="width:70px;">LOOPNE</td>
+          <td style="width:100px;">1110 0000</td>
+          <td style="width:100px;">disp</td>
+        </tr>
+        <tr>
+          <td title="z=1">z &#x2227; CX &#x2260; 0</td>
+          <td class="head" title="loop while zero">LOOPZ</td>
+          <td class="head" title="loop while equal">LOOPE</td>
+          <td>1110 0001</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td>CX &#x2260; 0</td>
+          <td class="head" title="loop while CX!=0">LOOP</td>
+          <td class="head">&#xA0;</td>
+          <td>1110 0010</td>
+          <td>disp</td>
+        </tr>
+        <tr>
+          <td>CX = 0</td>
+          <td class="head" title="jump on CX=0">JCXZ</td>
+          <td class="head">&#xA0;</td>
+          <td>1110 0011</td>
+          <td>disp</td>
+        </tr>
+      </table>
+    </div>
+
+    <hr>
+
+    <h3>Examples</h3>
+
+    <pre>
+    <span class="">.. .. .. .. .. ..  -</span>
+    <span class="">03 CB              ADD CX,BX</span>
+    <span class="">02 CB              ADD CL,BL</span>
+(*) <span class="">00 CB              ADD BL,CL</span>
+(*) <span class="">00 D9              ADD CL,BL</span>
+    <span class="">01 16 34 12        ADD [1234],DX</span>
+    <span class="">01 0D              ADD [DI],CX</span>
+    <span class="">01 4F FE           ADD [BX-02],CX</span>
+    <span class="">03 0C              ADD CX,[SI]</span>
+    <span class="">04 05              ADD AL,05</span>
+    <span class="">05 05 00           ADD AX,0005</span>
+(*) <span class="">82 C0 05           ADD AL,05</span>
+    <span class="">82 C1 05           ADD CL,05</span>
+(*) <span class="">81 C0 05 00        ADD AX,0005</span>
+    <span class="">81 C2 05 00        ADD DX,0005</span>
+    <span class="">83 C2 05           ADD DX,+05</span>
+    <span class="">83 C2 FF           ADD DX,-01</span>
+    <span class="">82 C2 FF           ADD DL,FF</span>
+(!) <span class="">80 C2 34 12        ADD DL,????</span>
+(*) <span class="">81 C8 34 12        OR AX,1234</span>
+(*) <span class="">81 F8 34 12        CMP AX,1234</span>
+    <span class="">81 B2 78 56 34 12  XOR WORD PTR [BP+SI+5678],1234</span>
+    <span class="">8B C3              MOV AX,BX</span>
+    <span class="">8A D7              MOV DL,BH</span>
+(*) <span class="">88 D7              MOV BH,DL</span>
+    <span class="">8E 5A FC           MOV DS,[BP+SI-04]</span>
+    <span class="red" title="Ongeldig, want er zijn maar 4 segmentregisters en nummer 7 wordt gevraagd.">8E 7A FC           MOV ??,[BP+SI-04]</span>
+
+    <span class="red" title="Ongeldig, want AX is maar 16 bits groot.">FF D8              CALL FAR AX</span>
+
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    <span class=""></span>
+    </pre>
+
+  </body>
+</html>

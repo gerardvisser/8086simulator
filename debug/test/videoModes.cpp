@@ -156,26 +156,7 @@ static void setVGAPalette (VideoCard& videoCard) {
   //videoCard.readByte (0x3DA);
 }
 
-/*
-Memory map (3CE, 6, bits: 3, 2): 3 (B800, 32kiB)
-Grafisch (3CE, 6, bit: 0): FALSE
-Shift mode (3CE, 5, bits: 6, 5): SINGLE_SHIFT (niet belangrijk als in tekstmodus)
-
-Memory mode (3C4, 4, bits: 3, 2): ODD_EVEN
-Write Plane Enable (3C4, 2): 0011b
-Narrow Characters (3C4, 1, bit: 0): FALSE [*]
-
-Scan Doubling (3D4, 9, bit: 7): FALSE
-Horizontal Total (3D4, 0): 4D
-Vertical Total (3D4, 6): 1DF
-Horizontal End (3D4, 1): 4F
-Vertical End (3D4, 12): 18F
-Overflow (3D4, 7): 1F
-Cga Addressing (3D4, 17, bit: 0, inverted): FALSE
-
-Wide Pixels (3C0, 10, bit: 6): FALSE
- */
-static void setMode03 (VideoCard& videoCard, Memory& memory) {
+static void setTextMode (VideoCard& videoCard, Memory& memory, int mode) {
   Address srcAddress (0xC000, 0xA);
   int offset8x16Font = memory.readWord (srcAddress);
   srcAddress.offset = offset8x16Font;
@@ -205,51 +186,34 @@ static void setMode03 (VideoCard& videoCard, Memory& memory) {
 
   videoCard.readByte (0x3DA);
   videoCard.writeByte (0x3C0, 0x30);
-  videoCard.writeByte (0x3C0, 0);
+  videoCard.writeByte (0x3C0, 0x04);
   videoCard.writeByte (0x3C0, 0x34);
   videoCard.writeByte (0x3C0, 0);
   videoCard.writeByte (0x3C0, 0x20);
   videoCard.readByte (0x3DA);
 
-  videoCard.writeWord (0x3D4, 0x5500);//9pix char mode: 4D00
-  videoCard.writeWord (0x3D4, 0x4F01);
+  if (mode < 2) {
+    videoCard.writeWord (0x3D4, 0x2300);
+    videoCard.writeWord (0x3D4, 0x2701);
+  } else {
+    videoCard.writeWord (0x3D4, 0x4B00);
+    videoCard.writeWord (0x3D4, 0x4F01);
+  }
   videoCard.writeWord (0x3D4, 0xDF06);
-  videoCard.writeWord (0x3D4, 0x1F07);
-  videoCard.writeWord (0x3D4, 0x4F09);
   videoCard.writeWord (0x3D4, 0x8F12);
-  videoCard.writeWord (0x3D4, 0xA317);
+  videoCard.writeWord (0x3D4, 0x0307);
+  videoCard.writeWord (0x3D4, 0x4F09);
+  videoCard.writeWord (0x3D4, 0x0117);
   videoCard.writeWord (0x3CE, 0x1005); /* not necessary */
   videoCard.writeWord (0x3CE, 0x0E06); /* Memory map: B800, Text */
+
   /* afgerond?  */
-  /*
-  videoCard.writeByte (0x3C4, 1);
-  int b = videoCard.readByte (0x3C5);
-  b &= 0xFE;
-  videoCard.writeByte (0x3C5, b); // 9 pixels wide characters
-  */
 
   /* int 43h zetten; bios variabelen zetten  */
+
+  videoCard.writeWord (0x3C4, 0x0001); /* 9 pixels wide characters & Enable video */
 }
 
-/*
-Memory map (3CE, 6, bits: 3, 2): 3 (B800, 32kiB)
-Grafisch (3CE, 6, bit: 0): TRUE
-Shift mode (3CE, 5, bits: 6, 5): INTERLEAVED_SHIFT
-
-Memory mode (3C4, 4, bits: 3, 2): ODD_EVEN
-Write Plane Enable (3C4, 2): 0011b
-Narrow Characters (3C4, 1, bit: 0): TRUE
-
-Scan Doubling (3D4, 9, bit: 7): TRUE
-Horizontal Total (3D4, 0): 28
-Vertical Total (3D4, 6): 1DF
-Horizontal End (3D4, 1): 27
-Vertical End (3D4, 12): 18F
-Overflow (3D4, 7): 1F
-Cga Addressing (3D4, 17, bit: 0, inverted): TRUE
-
-Wide Pixels (3C0, 10, bit: 6): FALSE
- */
 static void setMode04 (VideoCard& videoCard, Memory& memory) {
   Address dstAddress (0xA000, 0);
   videoCard.writeWord (0x3C4, 0x0F02); /* enable planes 3, 2, 1, 0 */
@@ -273,33 +237,16 @@ static void setMode04 (VideoCard& videoCard, Memory& memory) {
   videoCard.writeWord (0x3D4, 0x2800);
   videoCard.writeWord (0x3D4, 0x2701);
   videoCard.writeWord (0x3D4, 0xDF06);
-  videoCard.writeWord (0x3D4, 0x1F07);
-  videoCard.writeWord (0x3D4, 0xC109);
   videoCard.writeWord (0x3D4, 0x8F12);
-  videoCard.writeWord (0x3D4, 0xA217);
+  videoCard.writeWord (0x3D4, 0x0307);
+  videoCard.writeWord (0x3D4, 0xC109);
+  videoCard.writeWord (0x3D4, 0x0017);
   videoCard.writeWord (0x3CE, 0x3005); /* INTERLEAVED_SHIFT */
   videoCard.writeWord (0x3CE, 0x0F06); /* Memory map: B800, Graphical */
+
+  videoCard.writeWord (0x3C4, 0x0101); /* Enable video */
 }
 
-/*
-Memory map (3CE, 6, bits: 3, 2): 1 (A000, 64kiB)
-Grafisch (3CE, 6, bit: 0): TRUE
-Shift mode (3CE, 5, bits: 6, 5): SINGLE_SHIFT (0)
-
-Memory mode (3C4, 4, bits: 3, 2): PLANAR
-Write Plane Enable (3C4, 2): 1111b
-Narrow Characters (3C4, 1, bit: 0): TRUE
-
-Scan Doubling (3D4, 9, bit: 7): FALSE
-Horizontal Total (3D4, 0): 55
-Vertical Total (3D4, 6): 1DF
-Horizontal End (3D4, 1): 4F
-Vertical End (3D4, 12): 1DF
-Overflow (3D4, 7): 1F (different from VGA setting)
-Cga Addressing (3D4, 17, bit: 0, inverted): FALSE
-
-Wide Pixels (3C0, 10, bit: 6): FALSE
- */
 static void setMode12 (VideoCard& videoCard, Memory& memory) {
   Address dstAddress (0xA000, 0);
   videoCard.writeWord (0x3C4, 0x0F02); /* enable planes 3, 2, 1, 0 */
@@ -321,10 +268,10 @@ static void setMode12 (VideoCard& videoCard, Memory& memory) {
   videoCard.writeWord (0x3D4, 0x5500);
   videoCard.writeWord (0x3D4, 0x4F01);
   videoCard.writeWord (0x3D4, 0xDF06);
-  videoCard.writeWord (0x3D4, 0x1F07);
-  videoCard.writeWord (0x3D4, 0x4009);
   videoCard.writeWord (0x3D4, 0xDF12);
-  videoCard.writeWord (0x3D4, 0xE317);
+  videoCard.writeWord (0x3D4, 0x0307);
+  videoCard.writeWord (0x3D4, 0x4009);
+  videoCard.writeWord (0x3D4, 0x0117);
   //videoCard.writeWord (0x3CE, 0x0005); /* SINGLE_SHIFT, already set  */
   videoCard.writeWord (0x3CE, 0x0506); /* Memory map: A000, Graphical */
 }
@@ -340,11 +287,15 @@ void videoModes::setMode (VideoCard& videoCard, Memory& memory, int mode) {
   videoCard.writeWord (0x3C4, 0x0604); /* planar */
 
   switch (mode) {
+  case 0:
+  case 1:
+  case 2:
   case 3:
-    setMode03 (videoCard, memory);
+    setTextMode (videoCard, memory, mode);
     break;
 
   case 4:
+  case 5:
     setMode04 (videoCard, memory);
     break;
 

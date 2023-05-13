@@ -20,7 +20,7 @@
 #ifndef __VIDEO_MEMORY_TEST_INCLUDED
 #define __VIDEO_MEMORY_TEST_INCLUDED
 
-namespace test {
+namespace videoMemoryTest {
   void readByte_planar_mode0 (void);
   void readByte_planar_mode1 (void);
   void readByte_oddEven (void);
@@ -39,6 +39,12 @@ namespace test {
   void getPixels_singleShift_planar_cgaAddressing (void);
   void getPixels_interleavedShift_oddEven_cgaAddressing (void);
   void getPixels_256Shift_chain4_cgaAddressing (void);
+  void getPixels_text8x16 (void);
+  void getPixels_text9x16 (void);
+  void getPixels_text9x16LineGraphicsEnable (void);
+  void getPixels_singleShift_maxScanLine_wideChars (void);
+  void getPixels_interleavedShift_maxScanLine_wideChars (void);
+  void getPixels_256Shift_maxScanLine_wideChars (void);
 }
 
 #endif

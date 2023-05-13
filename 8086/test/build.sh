@@ -15,7 +15,7 @@ c++ -std=c++17 -c -O2 -DTEST_MODE -I../include -o objs/VideoOutputController.o .
 c++ -std=c++17 -c -O2 -DTEST_MODE -I../include -o objs/Colour.o ../src/8086/sdl/Colour.cpp
 c++ -std=c++17 -c -O2 -DTEST_MODE -I../include -o objs/Renderer.o ../src/8086/sdl/Renderer.cpp
 
-c++ -std=c++17 -c -O2 -DTEST_MODE -I../include -o objs/VideoMemoryTest.o VideoMemoryTest.cpp
+c++ -std=c++17 -c -O2 -DTEST_MODE -I../include -o objs/videoMemoryTest.o videoMemoryTest.cpp
 c++ -std=c++17 -c -O2 -DTEST_MODE -I../include -o objs/test.o test.cpp
 
 c++ -std=c++17 -s -o test.elf objs/*.o

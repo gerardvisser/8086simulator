@@ -56,7 +56,7 @@ public:
   VideoMemory& operator= (const VideoMemory&) = delete;
   VideoMemory& operator= (VideoMemory&&) = delete;
 
-  void getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines);
+  void getPixels (uint8_t* dst, int widthInCharacters, int heightInScanLines, bool narrowChars);
   int readByte (int index);
   void readBytes (uint8_t* dst, int index, uint16_t count);
   int readWord (int index);
@@ -105,9 +105,10 @@ private:
   uint32_t applyLogOp (uint32_t planes) const;
   uint32_t applyMask (uint32_t planes, uint8_t mask) const;
   void getPixels256Shift (uint8_t* dst, int dstOff, int srcOff, int count) const;
-  void getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, int heightInScanLines) const;
+  void getPixelsAlphanumeric (uint8_t* dst, int widthInCharacters, int heightInScanLines, bool narrowChars) const;
   void getPixelsCgaAddressing (uint8_t* dst, int widthIn8PixelUnits, int heightInScanLines) const;
   void getPixelsInterleavedShift (uint8_t* dst, int dstOff, int srcOff, int count) const;
+  void getPixelsMaxScanLineNotNil (uint8_t* dst, int widthIn8PixelUnits, int heightInScanLines) const;
   void getPixelsSingleShift (uint8_t* dst, int dstOff, int srcOff, int count) const;
   static uint32_t replicate (uint8_t value);
   uint8_t ror (uint8_t value) const;

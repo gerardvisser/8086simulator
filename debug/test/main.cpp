@@ -32,15 +32,15 @@ int main (int argc, char** args, char** env) {
   VideoCard& videoCard = machine.videoCard ();
   Memory& memory = machine.memory ();
 
-  videoModes::setMode (videoCard, memory, 0x4);
+  videoModes::setMode (videoCard, memory, 0x03);
   //videoCard.writeWord (0x3D4, 0xC109);
-  writeSomePixels04 (memory/*, videoCard*/);
+  //writeSomePixels04 (memory/*, videoCard*/);
 
   string input;
   printf ("> ");
   getline (std::cin, input);
   while (input != "quit") {
-    //printString (memory, input);
+    printString (memory, input);
 
     printf ("> ");
     getline (std::cin, input);

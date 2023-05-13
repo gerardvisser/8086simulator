@@ -73,7 +73,7 @@ void VideoOutputController::drawScreen (Renderer& renderer) {
   if (!m_screenDisabled) {
 
     Dimensions dims (m_horizontalTotal, m_verticalTotal, m_horizontalEnd, m_verticalEnd, m_overflowRegister, m_narrowChars, m_widePixels, m_scanDoubling);
-    m_videoMemory.getPixels (m_pixels, dims.activeDisplayWidthInChars, dims.activeDisplayHeightInPixels);
+    m_videoMemory.getPixels (m_pixels, dims.activeDisplayWidthInChars, dims.activeDisplayHeightInPixels, m_narrowChars);
     renderer.setResolution (dims.totalWidthInPixels, dims.totalHeightInPixels);
 
     int width = dims.activeDisplayWidthInPixels;
