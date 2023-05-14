@@ -215,12 +215,6 @@ static void setTextMode (VideoCard& videoCard, Memory& memory, int mode) {
 }
 
 static void setMode04 (VideoCard& videoCard, Memory& memory) {
-  Address dstAddress (0xA000, 0);
-  videoCard.writeWord (0x3C4, 0x0F02); /* enable planes 3, 2, 1, 0 */
-  for (int i = 0; i < 0x8000; ++i) {
-    memory.writeWord (dstAddress, 0);
-    dstAddress += 2;
-  }
   videoCard.writeWord (0x3C4, 0x0302); /* enable planes 1, 0 */
   videoCard.writeWord (0x3C4, 0x0204); /* odd/even */
   setCGADac (videoCard, memory);
@@ -243,17 +237,33 @@ static void setMode04 (VideoCard& videoCard, Memory& memory) {
   videoCard.writeWord (0x3D4, 0x0017);
   videoCard.writeWord (0x3CE, 0x3005); /* INTERLEAVED_SHIFT */
   videoCard.writeWord (0x3CE, 0x0F06); /* Memory map: B800, Graphical */
+}
 
-  videoCard.writeWord (0x3C4, 0x0101); /* Enable video */
+static void setMode06 (VideoCard& videoCard, Memory& memory) {
+  videoCard.writeWord (0x3C4, 0x0102); /* enable plane 0 */
+  setCGADac (videoCard, memory);
+  setCGAPalette_2colours (videoCard);
+
+  videoCard.readByte (0x3DA);
+  videoCard.writeByte (0x3C0, 0x30);
+  videoCard.writeByte (0x3C0, 1);
+  videoCard.writeByte (0x3C0, 0x34);
+  videoCard.writeByte (0x3C0, 0);
+  videoCard.writeByte (0x3C0, 0x20);
+  videoCard.readByte (0x3DA);
+
+  videoCard.writeWord (0x3D4, 0x5500);
+  videoCard.writeWord (0x3D4, 0x4F01);
+  videoCard.writeWord (0x3D4, 0xDF06);
+  videoCard.writeWord (0x3D4, 0x8F12);
+  videoCard.writeWord (0x3D4, 0x0307);
+  videoCard.writeWord (0x3D4, 0xC109);
+  videoCard.writeWord (0x3D4, 0x0017);
+  //videoCard.writeWord (0x3CE, 0x0005); /* SINGLE_SHIFT, already set */
+  videoCard.writeWord (0x3CE, 0x0D06); /* Memory map: B800, Graphical */
 }
 
 static void setMode12 (VideoCard& videoCard, Memory& memory) {
-  Address dstAddress (0xA000, 0);
-  videoCard.writeWord (0x3C4, 0x0F02); /* enable planes 3, 2, 1, 0 */
-  for (int i = 0; i < 0x8000; ++i) {
-    memory.writeWord (dstAddress, 0);
-    dstAddress += 2;
-  }
   setEGADac (videoCard, memory);
   setEGAPalette (videoCard);
 
@@ -276,7 +286,67 @@ static void setMode12 (VideoCard& videoCard, Memory& memory) {
   videoCard.writeWord (0x3CE, 0x0506); /* Memory map: A000, Graphical */
 }
 
+static void setMode13 (VideoCard& videoCard, Memory& memory) {
+  videoCard.writeWord (0x3C4, 0x0E04); /* chain 4 */
+  setVGADac (videoCard, memory);
+  setVGAPalette (videoCard);
+
+  videoCard.readByte (0x3DA);
+  videoCard.writeByte (0x3C0, 0x30);
+  videoCard.writeByte (0x3C0, 0x41);
+  videoCard.writeByte (0x3C0, 0x34);
+  videoCard.writeByte (0x3C0, 0);
+  videoCard.writeByte (0x3C0, 0x20);
+  videoCard.readByte (0x3DA);
+
+  videoCard.writeWord (0x3D4, 0x5500);
+  videoCard.writeWord (0x3D4, 0x4F01);
+  videoCard.writeWord (0x3D4, 0xDF06);
+  videoCard.writeWord (0x3D4, 0x8F12);
+  videoCard.writeWord (0x3D4, 0x0307);
+  videoCard.writeWord (0x3D4, 0xC009);
+  videoCard.writeWord (0x3D4, 0x0117);
+  videoCard.writeWord (0x3CE, 0x4005); /* _256_SHIFT */
+  videoCard.writeWord (0x3CE, 0x0506); /* Memory map: A000, Graphical */
+}
+
+static void setGraphicsMode (VideoCard& videoCard, Memory& memory, int mode) {
+  Address dstAddress (0xA000, 0);
+  videoCard.writeWord (0x3C4, 0x0F02); /* enable planes 3, 2, 1, 0 */
+  for (int i = 0; i < 0x8000; ++i) {
+    memory.writeWord (dstAddress, 0);
+    dstAddress += 2;
+  }
+
+  switch (mode) {
+  case 4:
+  case 5:
+    setMode04 (videoCard, memory);
+    break;
+
+  case 6:
+    setMode06 (videoCard, memory);
+    break;
+
+  case 0x12:
+    setMode12 (videoCard, memory);
+    break;
+
+  case 0x13:
+    setMode13 (videoCard, memory);
+    break;
+  }
+
+  /* int 43h zetten; bios variabelen zetten  */
+
+  videoCard.writeWord (0x3C4, 0x0101); /* Enable video */
+}
+
 void videoModes::setMode (VideoCard& videoCard, Memory& memory, int mode) {
+  if (mode < 0 || mode >= 7 && mode <= 0xC || mode >= 0x15) {
+    return;
+  }
+
   videoCard.writeWord (0x3C4, 0x2101); /* Disable video */
   for (int i = 0; i < 6; ++i) {
     videoCard.writeWord (0x3CE, i);
@@ -286,26 +356,9 @@ void videoModes::setMode (VideoCard& videoCard, Memory& memory, int mode) {
   videoCard.writeWord (0x3CE, 0xFF08);
   videoCard.writeWord (0x3C4, 0x0604); /* planar */
 
-  switch (mode) {
-  case 0:
-  case 1:
-  case 2:
-  case 3:
+  if (mode < 4) {
     setTextMode (videoCard, memory, mode);
-    break;
-
-  case 4:
-  case 5:
-    setMode04 (videoCard, memory);
-    break;
-
-  case 0x12:
-    setMode12 (videoCard, memory);
-    break;
+  } else {
+    setGraphicsMode (videoCard, memory, mode);
   }
-
-  videoCard.writeByte (0x3C4, 1);
-  int b = videoCard.readByte (0x3C5);
-  b &= 0xDF;
-  videoCard.writeByte (0x3C5, b); /* Enable video */
 }

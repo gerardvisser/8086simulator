@@ -26,21 +26,22 @@
 static void printString (Memory& memory, const string& str);
 static void writeSomePixels04 (Memory& memory);
 static void writeSomePixels12 (Memory& memory, VideoCard& videoCard);
+static void writeSomePixels13 (Memory& memory);
 
 int main (int argc, char** args, char** env) {
   Machine machine ("Dit is een testscherm");
   VideoCard& videoCard = machine.videoCard ();
   Memory& memory = machine.memory ();
 
-  videoModes::setMode (videoCard, memory, 0x03);
+  videoModes::setMode (videoCard, memory, 0x13);
   //videoCard.writeWord (0x3D4, 0xC109);
-  //writeSomePixels04 (memory/*, videoCard*/);
+  writeSomePixels13 (memory/*, videoCard*/);
 
   string input;
   printf ("> ");
   getline (std::cin, input);
   while (input != "quit") {
-    printString (memory, input);
+    //printString (memory, input);
 
     printf ("> ");
     getline (std::cin, input);
@@ -94,5 +95,23 @@ static void writeSomePixels12 (Memory& memory, VideoCard& videoCard) {
       ++address;
     }
     address += 20;
+  }
+}
+
+static void writeSomePixels13 (Memory& memory) {
+  Address address (0xA000, 0);
+
+  for (int i = 0; i < 16; ++i) {
+    for (int j = 0; j < 16; ++j) {
+      for (int k = 0; k < 10; ++k) {
+        for (int l = 0; l < 10; ++l) {
+          memory.writeByte (address, 16 * i + j);
+          ++address;
+        }
+        address += 310;
+      }
+      address -= 3188;
+    }
+    address += 3648;
   }
 }
