@@ -45,8 +45,9 @@ std::shared_ptr<Token> Tokeniser::next (void) {
     token = createNumberToken (c, false);
   } else if (c == '"') {
     token = createStringToken ();
+  } else {
+    token = createOtherToken (c);
   }
-  token = createOtherToken (c);
 
   Token::Type type = token->type ();
   m_minusPartOfNumber = !(type == Token::Type::SEGREG || type == Token::Type::REG || type == Token::Type::IDENTIFIER ||
@@ -55,7 +56,7 @@ std::shared_ptr<Token> Tokeniser::next (void) {
 }
 
 std::shared_ptr<Token> Tokeniser::createHexNumberToken (bool negate) {
-  int column = m_column + 2;
+  int column = m_column + 2 + negate;
 
   int c = m_stream.get ();
   while (c == '0') {
@@ -69,7 +70,7 @@ std::shared_ptr<Token> Tokeniser::createHexNumberToken (bool negate) {
   m_stream.unget ();
   column += m_buffer.length ();
 
-  if (column == m_column + 2) {
+  if (column == m_column + 2 + negate) {
     Token* token = new Token (Token::Type::NUMBER, m_line, m_column, Token::Error::HEX_NUMBER_WITHOUT_VALUE);
     m_column = column;
     return std::shared_ptr<Token> (token);
@@ -92,6 +93,11 @@ std::shared_ptr<Token> Tokeniser::createHexNumberToken (bool negate) {
       value += m_buffer[i] - 0x30;
     }
     ++i;
+  }
+  if (value > 0x7FFFFFFF) {
+    Token* token = new Token (Token::Type::NUMBER, m_line, m_column, Token::Error::NUMBER_TOO_LARGE);
+    m_column = column;
+    return std::shared_ptr<Token> (token);
   }
   if (negate) {
     value = -value;
@@ -122,7 +128,7 @@ std::shared_ptr<Token> Tokeniser::createIDToken (int c) {
 }
 
 std::shared_ptr<Token> Tokeniser::createNumberToken (int c, bool negate) {
-  int column = m_column;
+  int column = m_column + negate;
 
   m_buffer.clear ();
   if (c == '0') {
@@ -172,13 +178,62 @@ std::shared_ptr<Token> Tokeniser::createNumberToken (int c, bool negate) {
 }
 
 std::shared_ptr<Token> Tokeniser::createOtherToken (int c) {
-  /*  als c == '-' && m_minusPartOfNumber && volgende teken is een cijfer: createNumberToken; m_column bijwerken?!? Zie createNumberToken impl.  */
-  /* TODO: IMPLEMENT */
+  if (c == '-' && m_minusPartOfNumber) {
+    int n = m_stream.get ();
+    if (isDigit (n)) {
+      return createNumberToken (n, true);
+    }
+    m_stream.unget ();
+  }
+  Token* token;
+  if (c == '+' || c == '-' || c == '*' || c == '/' || c == '%') {
+    token = new Token (Token::Type::OPERATOR, m_line, m_column, c);
+  } else if (c == '=') {
+    token = new Token (Token::Type::EQUALS, m_line, m_column);
+  } else if (c == ',') {
+    token = new Token (Token::Type::COMMA, m_line, m_column);
+  } else if (c == ':') {
+    token = new Token (Token::Type::COLON, m_line, m_column);
+  } else if (c == '(') {
+    token = new Token (Token::Type::LEFT_PARENTHESIS, m_line, m_column);
+  } else if (c == ')') {
+    token = new Token (Token::Type::RIGHT_PARENTHESIS, m_line, m_column);
+  } else if (c == '[') {
+    token = new Token (Token::Type::LEFT_BRACKET, m_line, m_column);
+  } else if (c == ']') {
+    token = new Token (Token::Type::RIGHT_BRACKET, m_line, m_column);
+  } else {
+    token = new Token (Token::Type::UNDEFINED, m_line, m_column, Token::Error::STRAY_CHAR);
+  }
+  ++m_column;
+  return std::shared_ptr<Token> (token);
 }
 
 std::shared_ptr<Token> Tokeniser::createStringToken (void) {
   m_buffer.clear ();
-  /* TODO: IMPLEMENT */
+
+  int column = m_column + 2;
+
+  bool esc = false;
+  int c = m_stream.get ();
+  while (!(c == eof || c == '\n' || c == '"' && !esc)) {
+    esc = c == '\\' && !esc;
+    if (!esc) {
+      m_buffer += c;
+    }
+    c = m_stream.get ();
+    ++column;
+  }
+  if (c == '"') {
+    Token* token = new Token (Token::Type::STRING, m_line, m_column, m_buffer);
+    m_column = column;
+    return std::shared_ptr<Token> (token);
+  }
+
+  m_stream.unget ();
+  Token* token = new Token (Token::Type::STRING, m_line, m_column, Token::Error::STRING_NOT_TERMINATED);
+  //m_column = column - 1;
+  return std::shared_ptr<Token> (token);
 }
 
 bool Tokeniser::isDigit (int c) {

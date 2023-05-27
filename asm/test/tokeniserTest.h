@@ -17,24 +17,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __TOKEN_DATA_INCLUDED
-#define __TOKEN_DATA_INCLUDED
+#ifndef __TOKENISER_TEST_INCLUDED
+#define __TOKENISER_TEST_INCLUDED
 
-#include <map>
-#include "Token.h"
-
-class TokenData {
-private:
-  Token::Type m_type;
-  int m_subtype;
-
-public:
-  explicit TokenData (Token::Type type = Token::Type::UNDEFINED, int subtype = -1);
-
-  static void get (std::map<std::string, TokenData>& tokenData);
-
-  int subtype (void) const;
-  Token::Type type (void) const;
-};
+namespace tokeniserTest {
+  void next (void);
+}
 
 #endif
