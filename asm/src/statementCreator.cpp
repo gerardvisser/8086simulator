@@ -188,12 +188,32 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
     /* TODO: IMPLEMENT */
     break;
 
+  case Token::Type::LOAD:
+    builder.type (Statement::Type::INSTRUCTION);
+    /* TODO: IMPLEMENT */
+    break;
+
+  case Token::Type::IN:
+    builder.type (Statement::Type::INSTRUCTION);
+    /* TODO: IMPLEMENT */
+    break;
+
+  case Token::Type::OUT:
+    builder.type (Statement::Type::INSTRUCTION);
+    /* TODO: IMPLEMENT */
+    break;
+
   case Token::Type::INT:
     builder.type (Statement::Type::INSTRUCTION);
     /* TODO: IMPLEMENT */
     break;
 
   case Token::Type::JMP:
+    builder.type (Statement::Type::INSTRUCTION);
+    /* TODO: IMPLEMENT */
+    break;
+
+  case Token::Type::CONDITIONAL_JMP:
     builder.type (Statement::Type::INSTRUCTION);
     /* TODO: IMPLEMENT */
     break;
