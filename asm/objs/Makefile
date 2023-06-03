@@ -1,7 +1,7 @@
 include ../../common.mk
 include ../common_objs.mk
 
-VPATH=../src
+VPATH=../src:../src/exception
 
 #objs:=$(objs) asm.o
 

@@ -20,13 +20,23 @@
 #include <algorithm>
 #include "Statement.h"
 
-Statement::Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens) : m_type (type), m_tokenCount (tokens.size ()) {
+Statement::Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens, std::vector<Operand>& operands) :
+    m_type (type), m_tokenCount (tokens.size ()), m_operandCount (operands.size ()) {
   m_tokens = new std::shared_ptr<Token>[m_tokenCount];
   std::copy (tokens.begin (), tokens.end (), m_tokens);
+  std::copy (operands.begin (), operands.end (), m_operands);
 }
 
 Statement::~Statement (void) {
   delete[] m_tokens;
+}
+
+Operand& Statement::operand (int index) {
+  return m_operands[index];
+}
+
+int Statement::operandCount (void) const {
+  return m_operandCount;
 }
 
 std::shared_ptr<Token>& Statement::token (int index) const {
@@ -46,7 +56,13 @@ Statement::Type Statement::type (void) const {
 
 Statement::Builder::Builder (void) {
   m_tokens.reserve (256);
+  m_operands.reserve (2);
   m_type = Type::INSTRUCTION;
+}
+
+Statement::Builder& Statement::Builder::addOperand (Operand operand) {
+  m_operands.push_back (operand);
+  return *this;
 }
 
 Statement::Builder& Statement::Builder::addToken (std::shared_ptr<Token> token) {
@@ -55,8 +71,9 @@ Statement::Builder& Statement::Builder::addToken (std::shared_ptr<Token> token) 
 }
 
 std::shared_ptr<Statement> Statement::Builder::build (void) {
-  Statement* statement = new Statement (m_type, m_tokens);
+  Statement* statement = new Statement (m_type, m_tokens, m_operands);
   m_tokens.clear ();
+  m_operands.clear ();
   return std::shared_ptr<Statement> (statement);
 }
 

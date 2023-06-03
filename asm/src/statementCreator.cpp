@@ -18,13 +18,16 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "statementCreator.h"
+#include "tokenSubtypes.h"
+#include "Operand.h"
+#include "exception/ParseException.h"
 #include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
 
 using TokenIterator = std::vector<std::shared_ptr<Token>>::iterator;
 
 static void assureCondition (bool condition, const char* errorMessageTemplate, ...);
+static Operand createOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
+static Operand createPointerOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
 static void createStatement (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
 static bool isExpressionStart (Token::Type tokenType);
 static bool isExpressionToken (Token::Type tokenType);
@@ -73,23 +76,20 @@ static void addExpression (Statement::Builder& builder, TokenIterator& tokenIter
         break;
 
       case Token::Type::NUMBER:
-        printf ("Error in line %d, column %d: missing operator before this number.", token->line (), token->column ());
-        exit (EXIT_FAILURE);
+        throw ParseException ("Error in line %d, column %d: missing operator before this number.", token->line (), token->column ());
 
       case Token::Type::IDENTIFIER:
         goto expressionTokensCollected;
 
       case Token::Type::LEFT_PARENTHESIS:
-        printf ("Error in line %d, column %d: missing operator before opening parenthesis.", token->line (), token->column ());
-        exit (EXIT_FAILURE);
+        throw ParseException ("Error in line %d, column %d: missing operator before opening parenthesis.", token->line (), token->column ());
       }
     } else {
       /* prev token was a LEFT_PARENTHESIS or an OPERATOR */
       switch (token->type ()) {
       case Token::Type::OPERATOR:
       case Token::Type::RIGHT_PARENTHESIS:
-        printf ("Error in line %d, column %d: a number, identifier or opening parenthesis expected.", token->line (), token->column ());
-        exit (EXIT_FAILURE);
+        throw ParseException ("Error in line %d, column %d: a number, identifier or opening parenthesis expected.", token->line (), token->column ());
 
       case Token::Type::NUMBER:
       case Token::Type::IDENTIFIER:
@@ -117,17 +117,13 @@ static void assureCondition (bool condition, const char* errorMessageTemplate, .
   if (!condition) {
     va_list argList;
     va_start (argList, errorMessageTemplate);
-    vprintf (errorMessageTemplate, argList);
-    va_end (argList);
-    printf ("\n");
-    exit (EXIT_FAILURE);
+    throw ParseException (errorMessageTemplate, argList);
   }
 }
 
 static void assureNotAtEnd (TokenIterator& tokenIter, const TokenIterator& tokensEnd, const char* errorMessage) {
   if (tokenIter == tokensEnd) {
-    printf ("Unexpected end of file: %s.\n", errorMessage);
-    exit (EXIT_FAILURE);
+    throw ParseException ("Unexpected end of file: %s.", errorMessage);
   }
 }
 
@@ -147,6 +143,151 @@ static void createForIdentifier (Statement::Builder& builder, TokenIterator& tok
   assureCondition (isExpressionStart (token->type ()), "Error in line %d, column %d: illegal start of expression", token->line (), token->column ());
   builder.type (Statement::Type::CONSTANT);
   addExpression (builder, tokenIter, tokensEnd);
+}
+
+static void createForInstructionWithOneOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "operand expected");
+  std::shared_ptr<Token> token = *tokenIter;
+
+  Operand::Width width = Operand::Width::UNDEFINED;
+
+  if (token->type () == Token::Type::PTR_TYPE) {
+    width = token->subtype () == TOKEN_SUBTYPE_BYTE ? Operand::Width::BYTE : Operand::Width::WORD;
+
+    ++tokenIter;
+    assureNotAtEnd (tokenIter, tokensEnd, "incomplete operand");
+    assureCondition ((*tokenIter)->type () == Token::Type::PTR,
+        "Error in line %d, column %d: keyword 'ptr' expected", (*tokenIter)->line (), (*tokenIter)->column ());
+    ++tokenIter;
+    assureNotAtEnd (tokenIter, tokensEnd, "incomplete operand");
+    token = *tokenIter;
+  }
+
+  Operand operand = createOperand (builder, tokenIter, tokensEnd);
+  if (width != Operand::Width::UNDEFINED) {
+    assureCondition (operand.type () == Operand::Type::POINTER,
+        "Error in line %d, column %d: pointer operand expected after 'ptr' keyword", token->line (), token->column ());
+    operand.width (width);
+  }
+  builder.addOperand (operand);
+}
+
+static void createForInstructionWithTwoOperands (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  createForInstructionWithOneOperand (builder, tokenIter, tokensEnd);
+  assureNotAtEnd (tokenIter, tokensEnd, "comma expected");
+  assureCondition ((*tokenIter)->type () == Token::Type::COMMA,
+      "Error in line %d, column %d: comma expected", (*tokenIter)->line (), (*tokenIter)->column ());
+  ++tokenIter;
+  assureNotAtEnd (tokenIter, tokensEnd, "second operand expected");
+  Operand operand = createOperand (builder, tokenIter, tokensEnd);
+  builder.addOperand (operand);
+}
+
+static Operand createOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  std::shared_ptr<Token> token = *tokenIter;
+  if (isExpressionStart (token->type ())) {
+    addExpression (builder, tokenIter, tokensEnd);
+    return Operand (Operand::Width::UNDEFINED, Operand::Type::IMMEDIATE, 0);
+  } else if (token->type () == Token::Type::REG) {
+    builder.addToken (token);
+    ++tokenIter;
+    Operand::Width width = token->subtype () > 7 ? Operand::Width::WORD : Operand::Width::BYTE;
+    return Operand (width, Operand::Type::REGISTER, token->subtype () & 0x7);
+  } else if (token->type () == Token::Type::LEFT_BRACKET) {
+    return createPointerOperand (builder, tokenIter, tokensEnd);
+  } else if (token->type () == Token::Type::SEGREG) {
+    builder.addToken (token);
+    ++tokenIter;
+    return Operand (Operand::Width::WORD, Operand::Type::SEGMENT_REGISTER, token->subtype ());
+  } else {
+    throw ParseException ("Error in line %d, column %d: operand expected.", token->line (), token->column ());
+  }
+}
+
+/* The token at tokenIter should be a [  */
+static Operand createPointerOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  std::shared_ptr<Token> token = *tokenIter;
+  const int operandStartLine = token->line ();
+  const int operandStartColumn = token->column ();
+  builder.addToken (token);
+  ++tokenIter;
+
+  int code = 0;
+  bool plusState = false;
+  while (!(tokenIter == tokensEnd || (*tokenIter)->type () == Token::Type::RIGHT_BRACKET)) {
+    token = *tokenIter;
+    if (plusState) {
+
+      assureCondition ((code & 1) == 0, "Error in line %d, column %d: ] expected", token->line (), token->column ());
+      assureCondition (token->type () == Token::Type::OPERATOR && token->subtype () == '+',
+          "Error in line %d, column %d: only + can be used between a register and a register or a numerical expression", token->line (), token->column ());
+      builder.addToken (token);
+      ++tokenIter;
+
+    } else {
+
+      if (token->type () == Token::Type::REG) {
+        switch (token->subtype ()) {
+        case TOKEN_SUBTYPE_BX:
+        case TOKEN_SUBTYPE_BP:
+          assureCondition ((code & 0x18) == 0, "Error in line %d, column %d: only one of BX, BP can be used", token->line (), token->column ());
+          code |= token->subtype () == TOKEN_SUBTYPE_BX ? 0x8 : 0x10;
+          break;
+
+        case TOKEN_SUBTYPE_SI:
+        case TOKEN_SUBTYPE_DI:
+          assureCondition ((code & 0x6) == 0, "Error in line %d, column %d: only one of SI, DI can be used", token->line (), token->column ());
+          code |= token->subtype () == TOKEN_SUBTYPE_SI ? 0x2 : 0x4;
+          break;
+
+        default:
+          throw ParseException ("Error in line %d, column %d: only the registers BX, BP, SI or DI are allowed to be used here.", token->line (), token->column ());
+        }
+        builder.addToken (token);
+        ++tokenIter;
+      } else if (isExpressionStart (token->type ())) {
+        addExpression (builder, tokenIter, tokensEnd);
+        code |= 1;
+      } else {
+        throw ParseException ("Error in line %d, column %d: only the registers BX, BP, SI or DI and/or a numerical expression can be used to specify an address.",
+            token->line (), token->column ());
+      }
+
+    }
+    plusState = !plusState;
+  }
+
+  assureNotAtEnd (tokenIter, tokensEnd, "incomplete pointer operand");
+  assureCondition (code != 0, "Error in line %d, column %d: [] is not a valid operand", operandStartLine, operandStartColumn);
+  if (code == 0x10) {
+    /* [BP] is not a valid operand, [BP+0] is...  */
+    builder.addToken (std::shared_ptr<Token> (new Token (Token::Type::OPERATOR, -2, -2, '+')));
+    builder.addToken (std::shared_ptr<Token> (new Token (Token::Type::NUMBER, -2, -2, 0)));
+    code = 0x11;
+  }
+  builder.addToken (*tokenIter);
+  ++tokenIter;
+
+  /* :-( */
+  int id;
+  if (code == 1) {
+    id = 6;
+  } else {
+    switch (code >> 1) {
+    case 1: id = 4; break;
+    case 2: id = 5; break;
+    case 4: id = 7; break;
+    case 5: id = 0; break;
+    case 6: id = 1; break;
+    case 8: id = 6; break;
+    case 9: id = 2; break;
+    case 10: id = 3;
+    }
+    if ((code & 1) != 0) {
+      id |= 8;
+    }
+  }
+  return Operand (Operand::Width::UNDEFINED, Operand::Type::POINTER, id);
 }
 
 static void createStatement (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
@@ -180,12 +321,12 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
 
   case Token::Type::INSTR1:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForInstructionWithOneOperand (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::INSTR2:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForInstructionWithTwoOperands (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::LOAD:
@@ -219,8 +360,7 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
     break;
 
   default:
-    printf ("Error in line %d, column %d: an instruction identifier, label or constant definition expected.\n", token->line (), token->column ());
-    exit (EXIT_FAILURE);
+    throw ParseException ("Error in line %d, column %d: an instruction identifier, label or constant definition expected.", token->line (), token->column ());
   }
 }
 

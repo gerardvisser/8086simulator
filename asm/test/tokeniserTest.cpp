@@ -19,10 +19,9 @@
 
 #include "tokeniserTest.h"
 #include "assertions.h"
+#include "testUtils.h"
 #include "../src/Tokeniser.h"
 #include "../src/tokenSubtypes.h"
-#include <fstream>
-#include <vector>
 
 #define checkToken(token, expectedLine, expectedColumn, expectedType, expectedSubtype, expectedError, expectedText) \
     assertTrue (token->line () == expectedLine, "Error in %s: incorrect line, expected=%d, actual=%d\n", #token, expectedLine, token->line ()); \
@@ -32,28 +31,10 @@
     assertTrue (token->error () == expectedError, "Error in %s: incorrect error, expected=%d, actual=%d\n", #token, (int) expectedError, (int) token->error ()); \
     assertTrue (token->text () == expectedText, "Error in %s: incorrect text, expected=%s, actual=%s\n", #token, expectedText, token->text ().c_str ());
 
-static std::vector<std::shared_ptr<Token>> createTokens (std::string filename) {
-  std::map<std::string, TokenData> tokenData;
-  TokenData::get (tokenData);
-
-  std::ifstream stream (filename);
-  Tokeniser tokeniser (stream, tokenData);
-
-  std::vector<std::shared_ptr<Token>> tokens;
-  tokens.reserve (256);
-
-  std::shared_ptr<Token> token = tokeniser.next ();
-  while (token) {
-    tokens.push_back (token);
-    token = tokeniser.next ();
-  }
-  return tokens;
-}
-
 void tokeniserTest::next (void) {
   printf ("tokeniserTest::next: ");
 
-  std::vector<std::shared_ptr<Token>> tokens = createTokens ("tokeniserTest.txt");
+  std::vector<std::shared_ptr<Token>> tokens = testUtils::createTokensFromFile ("tokeniserTest.txt");
   assertTrue (tokens.size () == 40, "40 tokens expected, but %ld found.\n", tokens.size ());
 
   checkToken (tokens[0], 0, 0, Token::Type::SEGREG, TOKEN_SUBTYPE_CS, Token::Error::NONE, "");

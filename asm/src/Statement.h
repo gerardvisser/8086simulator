@@ -22,6 +22,7 @@
 
 #include <memory>
 #include <vector>
+#include "Operand.h"
 #include "Token.h"
 
 class Statement {
@@ -32,10 +33,12 @@ public:
 
 private:
   std::shared_ptr<Token>* m_tokens;
+  Operand m_operands[2];
+  int m_operandCount;
   int m_tokenCount;
   Type m_type;
 
-  Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens);
+  Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens, std::vector<Operand>& operands);
 
 public:
   Statement (const Statement&) = delete;
@@ -46,6 +49,8 @@ public:
   Statement& operator= (const Statement&) = delete;
   Statement& operator= (Statement&&) = delete;
 
+  Operand& operand (int index);
+  int operandCount (void) const;
   std::shared_ptr<Token>& token (int index) const;
   int tokenCount (void) const;
   Type type (void) const;
@@ -53,6 +58,7 @@ public:
   class Builder {
   private:
     std::vector<std::shared_ptr<Token>> m_tokens;
+    std::vector<Operand> m_operands;
     Type m_type;
 
   public:
@@ -64,6 +70,7 @@ public:
     Builder& operator= (const Builder&) = delete;
     Builder& operator= (Builder&&) = delete;
 
+    Builder& addOperand (Operand operand);
     Builder& addToken (std::shared_ptr<Token> token);
     std::shared_ptr<Statement> build (void);
     Builder& type (Type type);
