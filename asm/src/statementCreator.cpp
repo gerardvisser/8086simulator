@@ -172,15 +172,58 @@ static void createForInstructionWithOneOperand (Statement::Builder& builder, Tok
   builder.addOperand (operand);
 }
 
+static void createForInstructionWithOneOptionalOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  if (tokenIter != tokensEnd) {
+    std::shared_ptr<Token>& token = *tokenIter;
+    if (token->type () == Token::Type::NUMBER) {
+      builder.addToken (token);
+      ++tokenIter;
+      builder.addOperand (Operand (Operand::Width::UNDEFINED, Operand::Type::IMMEDIATE, 0));
+    }
+  }
+}
+
 static void createForInstructionWithTwoOperands (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
   createForInstructionWithOneOperand (builder, tokenIter, tokensEnd);
   assureNotAtEnd (tokenIter, tokensEnd, "comma expected");
-  assureCondition ((*tokenIter)->type () == Token::Type::COMMA,
-      "Error in line %d, column %d: comma expected", (*tokenIter)->line (), (*tokenIter)->column ());
+  std::shared_ptr<Token> token = *tokenIter;
+  assureCondition (token->type () == Token::Type::COMMA,
+      "Error in line %d, column %d: comma expected", token->line (), token->column ());
+  builder.addToken (token);
   ++tokenIter;
   assureNotAtEnd (tokenIter, tokensEnd, "second operand expected");
   Operand operand = createOperand (builder, tokenIter, tokensEnd);
   builder.addOperand (operand);
+}
+
+static void createForLoad (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "register operand expected");
+  std::shared_ptr<Token> token = *tokenIter;
+  Operand operand = createOperand (builder, tokenIter, tokensEnd);
+  assureCondition (operand.type () == Operand::Type::REGISTER && operand.width () == Operand::Width::WORD,
+      "Error in line %d, column %d: 16 bits register operand expected", token->line (), token->column ());
+  builder.addOperand (operand);
+  assureNotAtEnd (tokenIter, tokensEnd, "comma expected");
+  token = *tokenIter;
+  assureCondition (token->type () == Token::Type::COMMA,
+      "Error in line %d, column %d: comma expected", token->line (), token->column ());
+  builder.addToken (token);
+  ++tokenIter;
+  assureNotAtEnd (tokenIter, tokensEnd, "second operand expected");
+  token = *tokenIter;
+  operand = createOperand (builder, tokenIter, tokensEnd);
+  assureCondition (operand.type () == Operand::Type::POINTER,
+      "Error in line %d, column %d: pointer operand expected", token->line (), token->column ());
+  operand.width (Operand::Width::WORD);
+  builder.addOperand (operand);
+}
+
+static void createForSegreg (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "colon expected after segment register");
+  std::shared_ptr<Token> token = *tokenIter;
+  assureCondition (token->type () == Token::Type::COLON,
+      "Error in line %d, column %d: colon expected after segment register", token->line (), token->column ());
+  ++tokenIter;
 }
 
 static Operand createOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
@@ -307,7 +350,7 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
 
   case Token::Type::SEGREG:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForSegreg (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::INSTR0:
@@ -316,7 +359,7 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
 
   case Token::Type::INSTR01:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForInstructionWithOneOptionalOperand (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::INSTR1:
@@ -331,7 +374,7 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
 
   case Token::Type::LOAD:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForLoad (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::IN:

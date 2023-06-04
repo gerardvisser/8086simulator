@@ -23,6 +23,7 @@
 namespace statementCreatorTest {
   void createLabelOrConstantStatement (void);
   void createInstructionWithOneOperand (void);
+  void createInstructionWithTwoOperands (void);
 }
 
 #endif

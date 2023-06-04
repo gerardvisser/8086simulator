@@ -30,7 +30,7 @@ protected:
   void createMessage (const char* message, va_list args);
 
 public:
-  RuntimeException (const char* message, ...);
+  explicit RuntimeException (const char* message, ...);
 
   RuntimeException (const RuntimeException&) = delete;
   RuntimeException (RuntimeException&& other);

@@ -278,6 +278,60 @@ void statementCreatorTest::createInstructionWithOneOperand (void) {
   printf ("Ok\n");
 }
 
+void statementCreatorTest::createInstructionWithTwoOperands (void) {
+  printf ("statementCreatorTest::createInstructionWithTwoOperands: ");
+
+  /* TODO: Meer maken */
+  std::string text = std::string ("mov es, ax\n") +
+      "lea cx, [bx + di]\n";
+
+  std::vector<std::shared_ptr<Token>> tokens = testUtils::createTokensFromString (text);
+  std::vector<std::shared_ptr<Statement>> statements = statementCreator::create (tokens);
+  assertTrue (statements.size () == 2, "(line %d) two statements expected (%ld created)\n", __LINE__, statements.size ());
+
+  //mov es, ax
+  assertTrue (statements[0]->type () == Statement::Type::INSTRUCTION, "(line %d) wrong statement type\n", __LINE__);
+  assertTrue (statements[0]->operandCount () == 2, "(line %d) operand count not 2\n", __LINE__);
+  assertTrue (statements[0]->tokenCount () == 4, "(line %d) four tokens expected for statement\n", __LINE__);
+  assertTrue (statements[0]->token (0)->type () == Token::Type::INSTR2, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[0]->token (0)->subtype () == TOKEN_SUBTYPE_MOV, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[0]->token (1)->type () == Token::Type::SEGREG, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[0]->token (1)->subtype () == TOKEN_SUBTYPE_ES, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[0]->token (2)->type () == Token::Type::COMMA, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[0]->token (3)->subtype () == TOKEN_SUBTYPE_AX, "(line %d) wrong token subtype\n", __LINE__);
+  Operand operand = statements[0]->operand (0);
+  assertTrue (operand.width () == Operand::Width::WORD, "(line %d) wrong operand width\n", __LINE__);
+  assertTrue (operand.type () == Operand::Type::SEGMENT_REGISTER, "(line %d) wrong operand type\n", __LINE__);
+  assertTrue (operand.id () == 0, "(line %d) wrong operand id\n", __LINE__);
+  operand = statements[0]->operand (1);
+  assertTrue (operand.width () == Operand::Width::WORD, "(line %d) wrong operand width\n", __LINE__);
+  assertTrue (operand.type () == Operand::Type::REGISTER, "(line %d) wrong operand type\n", __LINE__);
+  assertTrue (operand.id () == 0, "(line %d) wrong operand id\n", __LINE__);
+
+  //lea cx, [bx + di]
+  assertTrue (statements[1]->operandCount () == 2, "(line %d) operand count not 2\n", __LINE__);
+  assertTrue (statements[1]->tokenCount () == 8, "(line %d) eight tokens expected for statement\n", __LINE__);
+  assertTrue (statements[1]->token (0)->type () == Token::Type::LOAD, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[1]->token (0)->subtype () == TOKEN_SUBTYPE_LEA, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[1]->token (1)->subtype () == TOKEN_SUBTYPE_CX, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[1]->token (2)->type () == Token::Type::COMMA, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[1]->token (3)->type () == Token::Type::LEFT_BRACKET, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[1]->token (4)->subtype () == TOKEN_SUBTYPE_BX, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[1]->token (5)->subtype () == '+', "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[1]->token (6)->subtype () == TOKEN_SUBTYPE_DI, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[1]->token (7)->type () == Token::Type::RIGHT_BRACKET, "(line %d) wrong token type\n", __LINE__);
+  operand = statements[1]->operand (0);
+  assertTrue (operand.width () == Operand::Width::WORD, "(line %d) wrong operand width\n", __LINE__);
+  assertTrue (operand.type () == Operand::Type::REGISTER, "(line %d) wrong operand type\n", __LINE__);
+  assertTrue (operand.id () == 1, "(line %d) wrong operand id\n", __LINE__);
+  operand = statements[1]->operand (1);
+  assertTrue (operand.width () == Operand::Width::WORD, "(line %d) wrong operand width\n", __LINE__);
+  assertTrue (operand.type () == Operand::Type::POINTER, "(line %d) wrong operand type\n", __LINE__);
+  assertTrue (operand.id () == 1, "(line %d) wrong operand id\n", __LINE__);
+
+  printf ("Ok\n");
+}
+
 void statementCreatorTest::createLabelOrConstantStatement (void) {
   printf ("statementCreatorTest::createLabelOrConstantStatement: ");
 

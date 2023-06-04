@@ -24,7 +24,7 @@
 
 class ParseException : public RuntimeException {
 public:
-  ParseException (const char* message, ...);
+  explicit ParseException (const char* message, ...);
   ParseException (const char* message, va_list args);
 
   ParseException (const ParseException&) = delete;
