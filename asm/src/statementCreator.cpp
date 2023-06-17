@@ -23,9 +23,12 @@
 #include "exception/ParseException.h"
 #include <cstdarg>
 
+#define ACCUMULATOR 0
+
 using TokenIterator = std::vector<std::shared_ptr<Token>>::iterator;
 
 static void assureCondition (bool condition, const char* errorMessageTemplate, ...);
+static void assureNotAtEnd (TokenIterator& tokenIter, const TokenIterator& tokensEnd, const char* errorMessage);
 static Operand createOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
 static Operand createPointerOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
 static void createStatement (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
@@ -44,6 +47,15 @@ std::vector<std::shared_ptr<Statement>> statementCreator::create (std::vector<st
     statements.push_back (builder.build ());
   }
   return statements;
+}
+
+static void addComma (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "comma expected");
+  std::shared_ptr<Token>& token = *tokenIter;
+  assureCondition (token->type () == Token::Type::COMMA,
+      "Error in line %d, column %d: comma expected", token->line (), token->column ());
+  builder.addToken (token);
+  ++tokenIter;
 }
 
 /* The token at tokenIter should be a valid start for an expression.  */
@@ -113,6 +125,23 @@ static void addExpression (Statement::Builder& builder, TokenIterator& tokenIter
       expressionStartLine, expressionStartColumn);
 }
 
+static void addPortOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd, const char* errorMessage) {
+  assureNotAtEnd (tokenIter, tokensEnd, errorMessage);
+  std::shared_ptr<Token>& token = *tokenIter;
+  assureCondition (token->type () == Token::Type::REG && token->subtype () == TOKEN_SUBTYPE_DX || token->type () == Token::Type::NUMBER,
+      "Error in line %d, column %d: %s", token->line (), token->column (), errorMessage);
+
+  Operand operand;
+  if (token->type () == Token::Type::NUMBER) {
+    operand = Operand (Operand::Width::UNDEFINED, Operand::Type::IMMEDIATE, 0);
+  } else {
+    operand = Operand (Operand::Width::WORD, Operand::Type::REGISTER, TOKEN_SUBTYPE_DX & 0x7);
+  }
+  builder.addOperand (operand);
+  builder.addToken (token);
+  ++tokenIter;
+}
+
 static void assureCondition (bool condition, const char* errorMessageTemplate, ...) {
   if (!condition) {
     va_list argList;
@@ -125,6 +154,30 @@ static void assureNotAtEnd (TokenIterator& tokenIter, const TokenIterator& token
   if (tokenIter == tokensEnd) {
     throw ParseException ("Unexpected end of file: %s.", errorMessage);
   }
+}
+
+static void createForConditionalJmp (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "label identifier expected");
+  std::shared_ptr<Token>& token = *tokenIter;
+  assureCondition (token->type () == Token::Type::IDENTIFIER,
+      "Error in line %d, column %d: label identifier expected", token->line (), token->column ());
+  builder.addToken (token);
+  ++tokenIter;
+}
+
+static void createForData (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  const char* errorMessage = "a string or a number expected";
+  --tokenIter;
+
+  do {
+    ++tokenIter;
+    assureNotAtEnd (tokenIter, tokensEnd, errorMessage);
+    std::shared_ptr<Token> token = *tokenIter;
+    assureCondition (token->type () == Token::Type::STRING || token->type () == Token::Type::NUMBER,
+        "Error in line %d, column %d: %s", token->line (), token->column (), errorMessage);
+    builder.addToken (token);
+    ++tokenIter;
+  } while (tokenIter != tokensEnd && (*tokenIter)->type () == Token::Type::COMMA);
 }
 
 static void createForIdentifier (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
@@ -143,6 +196,19 @@ static void createForIdentifier (Statement::Builder& builder, TokenIterator& tok
   assureCondition (isExpressionStart (token->type ()), "Error in line %d, column %d: illegal start of expression", token->line (), token->column ());
   builder.type (Statement::Type::CONSTANT);
   addExpression (builder, tokenIter, tokensEnd);
+}
+
+static void createForIn (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "al or ax expected");
+  std::shared_ptr<Token>& token = *tokenIter;
+  Operand operand = createOperand (builder, tokenIter, tokensEnd);
+  assureCondition (operand.type () == Operand::Type::REGISTER && operand.id () == ACCUMULATOR,
+      "Error in line %d, column %d: al or ax expected", token->line (), token->column ());
+  builder.addOperand (operand);
+
+  addComma (builder, tokenIter, tokensEnd);
+
+  addPortOperand (builder, tokenIter, tokensEnd, "a number or dx as second operand expected");
 }
 
 static void createForInstructionWithOneOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
@@ -185,15 +251,66 @@ static void createForInstructionWithOneOptionalOperand (Statement::Builder& buil
 
 static void createForInstructionWithTwoOperands (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
   createForInstructionWithOneOperand (builder, tokenIter, tokensEnd);
-  assureNotAtEnd (tokenIter, tokensEnd, "comma expected");
-  std::shared_ptr<Token> token = *tokenIter;
-  assureCondition (token->type () == Token::Type::COMMA,
-      "Error in line %d, column %d: comma expected", token->line (), token->column ());
-  builder.addToken (token);
-  ++tokenIter;
+
+  addComma (builder, tokenIter, tokensEnd);
+
   assureNotAtEnd (tokenIter, tokensEnd, "second operand expected");
   Operand operand = createOperand (builder, tokenIter, tokensEnd);
   builder.addOperand (operand);
+}
+
+static void createForInt (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "number expected");
+  std::shared_ptr<Token>& token = *tokenIter;
+  assureCondition (token->type () == Token::Type::NUMBER,
+      "Error in line %d, column %d: number expected", token->line (), token->column ());
+  builder.addToken (token);
+  ++tokenIter;
+}
+
+static void createForJmp (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  assureNotAtEnd (tokenIter, tokensEnd, "a label identifier, the keyword 'far', a pointer or register operand or a number expected");
+  std::shared_ptr<Token> token = *tokenIter;
+  switch (token->type ()) {
+  case Token::Type::IDENTIFIER:
+    builder.addToken (token);
+    ++tokenIter;
+    break;
+
+  case Token::Type::NUMBER:
+    builder.addToken (token);
+    ++tokenIter;
+    assureNotAtEnd (tokenIter, tokensEnd, "colon expected");
+    token = *tokenIter;
+    assureCondition (token->type () == Token::Type::COLON,
+        "Error in line %d, column %d: colon expected", token->line (), token->column ());
+    ++tokenIter;
+    assureNotAtEnd (tokenIter, tokensEnd, "number expected");
+    token = *tokenIter;
+    assureCondition (token->type () == Token::Type::NUMBER,
+        "Error in line %d, column %d: number expected", token->line (), token->column ());
+    builder.addToken (token);
+    ++tokenIter;
+    break;
+
+  case Token::Type::FAR:
+    builder.addToken (token);
+    ++tokenIter;
+    assureNotAtEnd (tokenIter, tokensEnd, "a pointer or register operand expected");
+    token = *tokenIter;
+    assureCondition (token->type () == Token::Type::LEFT_BRACKET || token->type () == Token::Type::REG,
+        "Error in line %d, column %d: a pointer or register operand expected", token->line (), token->column ());
+
+  case Token::Type::LEFT_BRACKET:
+  case Token::Type::REG: {
+    Operand operand = createOperand (builder, tokenIter, tokensEnd);
+    builder.addOperand (operand);
+  } break;
+
+  default:
+    throw ParseException ("Error in line %d, column %d: a label identifier, the keyword 'far', an pointer or register operand or a number expected.",
+        token->line (), token->column ());
+  }
 }
 
 static void createForLoad (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
@@ -203,18 +320,28 @@ static void createForLoad (Statement::Builder& builder, TokenIterator& tokenIter
   assureCondition (operand.type () == Operand::Type::REGISTER && operand.width () == Operand::Width::WORD,
       "Error in line %d, column %d: 16 bits register operand expected", token->line (), token->column ());
   builder.addOperand (operand);
-  assureNotAtEnd (tokenIter, tokensEnd, "comma expected");
-  token = *tokenIter;
-  assureCondition (token->type () == Token::Type::COMMA,
-      "Error in line %d, column %d: comma expected", token->line (), token->column ());
-  builder.addToken (token);
-  ++tokenIter;
+
+  addComma (builder, tokenIter, tokensEnd);
+
   assureNotAtEnd (tokenIter, tokensEnd, "second operand expected");
   token = *tokenIter;
   operand = createOperand (builder, tokenIter, tokensEnd);
   assureCondition (operand.type () == Operand::Type::POINTER,
       "Error in line %d, column %d: pointer operand expected", token->line (), token->column ());
   operand.width (Operand::Width::WORD);
+  builder.addOperand (operand);
+}
+
+static void createForOut (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
+  addPortOperand (builder, tokenIter, tokensEnd, "a number or dx as first operand expected");
+
+  addComma (builder, tokenIter, tokensEnd);
+
+  assureNotAtEnd (tokenIter, tokensEnd, "al or ax expected");
+  std::shared_ptr<Token>& token = *tokenIter;
+  Operand operand = createOperand (builder, tokenIter, tokensEnd);
+  assureCondition (operand.type () == Operand::Type::REGISTER && operand.id () == ACCUMULATOR,
+      "Error in line %d, column %d: al or ax expected", token->line (), token->column ());
   builder.addOperand (operand);
 }
 
@@ -345,7 +472,7 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
 
   case Token::Type::DB:
     builder.type (Statement::Type::DATA);
-    /* TODO: IMPLEMENT */
+    createForData (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::SEGREG:
@@ -379,27 +506,27 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
 
   case Token::Type::IN:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForIn (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::OUT:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForOut (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::INT:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForInt (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::JMP:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForJmp (builder, tokenIter, tokensEnd);
     break;
 
   case Token::Type::CONDITIONAL_JMP:
     builder.type (Statement::Type::INSTRUCTION);
-    /* TODO: IMPLEMENT */
+    createForConditionalJmp (builder, tokenIter, tokensEnd);
     break;
 
   default:
