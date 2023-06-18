@@ -298,8 +298,8 @@ static void createForJmp (Statement::Builder& builder, TokenIterator& tokenIter,
     ++tokenIter;
     assureNotAtEnd (tokenIter, tokensEnd, "a pointer or register operand expected");
     token = *tokenIter;
-    assureCondition (token->type () == Token::Type::LEFT_BRACKET || token->type () == Token::Type::REG,
-        "Error in line %d, column %d: a pointer or register operand expected", token->line (), token->column ());
+    assureCondition (token->type () == Token::Type::LEFT_BRACKET,
+        "Error in line %d, column %d: a pointer operand expected", token->line (), token->column ());
 
   case Token::Type::LEFT_BRACKET:
   case Token::Type::REG: {

@@ -24,6 +24,8 @@ namespace statementCreatorTest {
   void createLabelOrConstantStatement (void);
   void createInstructionWithOneOperand (void);
   void createInstructionWithTwoOperands (void);
+  void createJump (void);
+  void createData (void);
 }
 
 #endif
