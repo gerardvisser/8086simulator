@@ -12,6 +12,7 @@ int main (int argc, char** args, char** env) {
     statementCreatorTest::createInstructionWithTwoOperands ();
     statementCreatorTest::createJump ();
     statementCreatorTest::createData ();
+    statementCreatorTest::createMiscInstructions ();
 
   } catch (ParseException& x) {
     printf ("ParseException: %s\n", x.message ());

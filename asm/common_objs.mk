@@ -1,8 +1,10 @@
 # Object files which are used by the tests:
 
 objs=\
+  Compilation.o\
   Operand.o\
   ParseException.o\
+  parser.o\
   RuntimeException.o\
   Statement.o\
   statementCreator.o\

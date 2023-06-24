@@ -750,3 +750,78 @@ void statementCreatorTest::createLabelOrConstantStatement (void) {
 
   printf ("Ok\n");
 }
+
+void statementCreatorTest::createMiscInstructions (void) {
+  printf ("statementCreatorTest::createMiscInstructions: ");
+
+  std::string text = std::string ("cs:\n") +
+      "nop\n" +
+      "pushf\n" +
+      "lodsb\n" +
+      "cli\n" +
+      "ret\n" +
+      "ret 2\n" +
+      "int 0x10\n";
+
+  std::vector<std::shared_ptr<Token>> tokens = testUtils::createTokensFromString (text);
+  std::vector<std::shared_ptr<Statement>> statements = statementCreator::create (tokens);
+  assertTrue (statements.size () == 8, "(line %d) eight statements expected\n", __LINE__);
+
+  //cs:
+  assertTrue (statements[0]->type () == Statement::Type::INSTRUCTION, "(line %d) wrong statement type\n", __LINE__);
+  assertTrue (statements[0]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[0]->tokenCount () == 1, "(line %d) one token expected for statement\n", __LINE__);
+  assertTrue (statements[0]->token (0)->type () == Token::Type::SEGREG, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[0]->token (0)->subtype () == TOKEN_SUBTYPE_CS, "(line %d) wrong token subtype\n", __LINE__);
+
+  //nop
+  assertTrue (statements[1]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[1]->tokenCount () == 1, "(line %d) one token expected for statement\n", __LINE__);
+  assertTrue (statements[1]->token (0)->type () == Token::Type::INSTR0, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[1]->token (0)->subtype () == TOKEN_SUBTYPE_NOP, "(line %d) wrong token subtype\n", __LINE__);
+
+  //pushf
+  assertTrue (statements[2]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[2]->tokenCount () == 1, "(line %d) one token expected for statement\n", __LINE__);
+  assertTrue (statements[2]->token (0)->type () == Token::Type::INSTR0, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[2]->token (0)->subtype () == TOKEN_SUBTYPE_PUSHF, "(line %d) wrong token subtype\n", __LINE__);
+
+  //lodsb
+  assertTrue (statements[3]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[3]->tokenCount () == 1, "(line %d) one token expected for statement\n", __LINE__);
+  assertTrue (statements[3]->token (0)->type () == Token::Type::INSTR0, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[3]->token (0)->subtype () == TOKEN_SUBTYPE_LODSB, "(line %d) wrong token subtype\n", __LINE__);
+
+  //cli
+  assertTrue (statements[4]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[4]->tokenCount () == 1, "(line %d) one token expected for statement\n", __LINE__);
+  assertTrue (statements[4]->token (0)->type () == Token::Type::INSTR0, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[4]->token (0)->subtype () == TOKEN_SUBTYPE_CLI, "(line %d) wrong token subtype\n", __LINE__);
+
+  //ret
+  assertTrue (statements[5]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[5]->tokenCount () == 1, "(line %d) one token expected for statement\n", __LINE__);
+  assertTrue (statements[5]->token (0)->type () == Token::Type::INSTR01, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[5]->token (0)->subtype () == TOKEN_SUBTYPE_RET, "(line %d) wrong token subtype\n", __LINE__);
+
+  //ret 2
+  assertTrue (statements[6]->operandCount () == 1, "(line %d) operand count not 1\n", __LINE__);
+  assertTrue (statements[6]->tokenCount () == 2, "(line %d) two tokens expected for statement\n", __LINE__);
+  assertTrue (statements[6]->token (0)->type () == Token::Type::INSTR01, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[6]->token (0)->subtype () == TOKEN_SUBTYPE_RET, "(line %d) wrong token subtype\n", __LINE__);
+  assertTrue (statements[6]->token (1)->type () == Token::Type::NUMBER, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[6]->token (1)->subtype () == 2, "(line %d) wrong token subtype\n", __LINE__);
+  Operand operand = statements[6]->operand (0);
+  assertTrue (operand.width () == Operand::Width::UNDEFINED, "(line %d) wrong operand width\n", __LINE__);
+  assertTrue (operand.type () == Operand::Type::IMMEDIATE, "(line %d) wrong operand type\n", __LINE__);
+  assertTrue (operand.id () == 0, "(line %d) wrong operand id\n", __LINE__);
+
+  //int 0x10
+  assertTrue (statements[7]->operandCount () == 0, "(line %d) operand count not 0\n", __LINE__);
+  assertTrue (statements[7]->tokenCount () == 2, "(line %d) two tokens expected for statement\n", __LINE__);
+  assertTrue (statements[7]->token (0)->type () == Token::Type::INT, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[7]->token (1)->type () == Token::Type::NUMBER, "(line %d) wrong token type\n", __LINE__);
+  assertTrue (statements[7]->token (1)->subtype () == 0x10, "(line %d) wrong token subtype\n", __LINE__);
+
+  printf ("Ok\n");
+}

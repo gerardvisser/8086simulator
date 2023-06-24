@@ -17,16 +17,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __STATEMENT_CREATOR_TEST_INCLUDED
-#define __STATEMENT_CREATOR_TEST_INCLUDED
+#ifndef __PARSER_INCLUDED
+#define __PARSER_INCLUDED
 
-namespace statementCreatorTest {
-  void createLabelOrConstantStatement (void);
-  void createInstructionWithOneOperand (void);
-  void createInstructionWithTwoOperands (void);
-  void createJump (void);
-  void createData (void);
-  void createMiscInstructions (void);
+#include <istream>
+#include "Statement.h"
+
+namespace parser {
+  std::vector<std::shared_ptr<Statement>> parse (std::istream& stream);
 }
 
 #endif

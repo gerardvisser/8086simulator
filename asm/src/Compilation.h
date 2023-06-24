@@ -17,16 +17,30 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __STATEMENT_CREATOR_TEST_INCLUDED
-#define __STATEMENT_CREATOR_TEST_INCLUDED
+#ifndef __COMPILATION_INCLUDED
+#define __COMPILATION_INCLUDED
 
-namespace statementCreatorTest {
-  void createLabelOrConstantStatement (void);
-  void createInstructionWithOneOperand (void);
-  void createInstructionWithTwoOperands (void);
-  void createJump (void);
-  void createData (void);
-  void createMiscInstructions (void);
-}
+#include <cstdint>
+#include <vector>
+
+class Compilation {
+private:
+  uint8_t* m_bytes;
+  int m_size;
+
+public:
+  Compilation (std::vector<uint8_t>& bytes);
+
+  Compilation (const Compilation&) = delete;
+  Compilation (Compilation&& other);
+
+  Compilation& operator= (const Compilation&) = delete;
+  Compilation& operator= (Compilation&& other);
+
+  ~Compilation (void);
+
+  const uint8_t* bytes (void) const;
+  const int size (void) const;
+};
 
 #endif
