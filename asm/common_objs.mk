@@ -2,6 +2,7 @@
 
 objs=\
   Compilation.o\
+  compiler.o\
   Operand.o\
   ParseException.o\
   parser.o\
