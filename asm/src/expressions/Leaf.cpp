@@ -17,14 +17,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#include "Leaf.h"
 
-#include <istream>
-#include "Compilation.h"
-
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
+Leaf::Leaf (int64_t value) : m_value (value) {
 }
 
-#endif
+Leaf::~Leaf (void) {
+}
+
+int64_t Leaf::value (void) const {
+  return m_value;
+}

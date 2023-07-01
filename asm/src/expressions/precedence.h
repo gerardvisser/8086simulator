@@ -17,14 +17,14 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __PRECEDENCE_INCLUDED
+#define __PRECEDENCE_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
-
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+#define ADD_PRECEDENCE   2
+#define DIV_PRECEDENCE   MUL_PRECEDENCE
+#define PAREN_PRECEDENCE 1
+#define MOD_PRECEDENCE   MUL_PRECEDENCE
+#define MUL_PRECEDENCE   3
+#define SUB_PRECEDENCE   ADD_PRECEDENCE
 
 #endif

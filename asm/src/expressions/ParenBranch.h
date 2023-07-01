@@ -17,14 +17,24 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __PAREN_BRANCH_INCLUDED
+#define __PAREN_BRANCH_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Branch.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class ParenBranch : public Branch {
+public:
+  ParenBranch (void);
+
+  ParenBranch (const ParenBranch&) = delete;
+  ParenBranch (ParenBranch&&) = delete;
+
+  virtual ~ParenBranch (void);
+
+  ParenBranch& operator= (const ParenBranch&) = delete;
+  ParenBranch& operator= (ParenBranch&&) = delete;
+
+  int64_t value (void) const override;
+};
 
 #endif

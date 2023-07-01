@@ -17,14 +17,36 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __EXPRESSION_INCLUDED
+#define __EXPRESSION_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include <cstdint>
+#include <map>
+#include <memory>
+#include "../Token.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class Branch;
+
+class Expression {
+private:
+  Branch* m_parent;
+
+public:
+  Expression (void);
+
+  virtual ~Expression (void);
+
+  static std::unique_ptr<const Expression> create (
+      std::shared_ptr<Token>* tokens,
+      const int tokenCount,
+      const std::map<std::string, int64_t>& constants,
+      const std::map<std::string, int>& labels);
+
+  Branch* addBranch (char op);
+  Branch* parent (void);
+  virtual int64_t value (void) const = 0;
+
+  friend class Branch;
+};
 
 #endif

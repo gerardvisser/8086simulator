@@ -17,14 +17,24 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __SUB_BRANCH_INCLUDED
+#define __SUB_BRANCH_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Branch.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class SubBranch : public Branch {
+public:
+  SubBranch (void);
+
+  SubBranch (const SubBranch&) = delete;
+  SubBranch (SubBranch&&) = delete;
+
+  virtual ~SubBranch (void);
+
+  SubBranch& operator= (const SubBranch&) = delete;
+  SubBranch& operator= (SubBranch&&) = delete;
+
+  int64_t value (void) const override;
+};
 
 #endif

@@ -17,14 +17,20 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#include "ParenBranch.h"
+#include "precedence.h"
+#include "../exception/RuntimeException.h"
 
-#include <istream>
-#include "Compilation.h"
-
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
+ParenBranch::ParenBranch (void) : Branch (PAREN_PRECEDENCE) {
 }
 
-#endif
+ParenBranch::~ParenBranch (void) {
+}
+
+int64_t ParenBranch::value (void) const {
+  const Expression* child = rightChild ();
+  if (child == nullptr) {
+    throw RuntimeException ("%s:%d: child is null.", __FILE__, __LINE__);
+  }
+  return child->value ();
+}

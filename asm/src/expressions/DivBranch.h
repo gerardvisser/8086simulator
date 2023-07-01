@@ -17,14 +17,24 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __DIV_BRANCH_INCLUDED
+#define __DIV_BRANCH_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Branch.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class DivBranch : public Branch {
+public:
+  DivBranch (void);
+
+  DivBranch (const DivBranch&) = delete;
+  DivBranch (DivBranch&&) = delete;
+
+  virtual ~DivBranch (void);
+
+  DivBranch& operator= (const DivBranch&) = delete;
+  DivBranch& operator= (DivBranch&&) = delete;
+
+  int64_t value (void) const override;
+};
 
 #endif

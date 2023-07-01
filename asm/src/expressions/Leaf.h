@@ -17,14 +17,27 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __LEAF_INCLUDED
+#define __LEAF_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Expression.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class Leaf : public Expression {
+private:
+  int64_t m_value;
+
+public:
+  explicit Leaf (int64_t value);
+
+  Leaf (const Leaf&) = delete;
+  Leaf (Leaf&&) = delete;
+
+  virtual ~Leaf (void);
+
+  Leaf& operator= (const Leaf&) = delete;
+  Leaf& operator= (Leaf&&) = delete;
+
+  int64_t value (void) const override;
+};
 
 #endif

@@ -17,14 +17,21 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#include "SubBranch.h"
+#include "precedence.h"
+#include "../exception/RuntimeException.h"
 
-#include <istream>
-#include "Compilation.h"
-
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
+SubBranch::SubBranch (void) : Branch (SUB_PRECEDENCE) {
 }
 
-#endif
+SubBranch::~SubBranch (void) {
+}
+
+int64_t SubBranch::value (void) const {
+  const Expression* left = leftChild ();
+  const Expression* right = rightChild ();
+  if (left == nullptr || right == nullptr) {
+    throw RuntimeException ("%s:%d: leftChild or rightChild is null.", __FILE__, __LINE__);
+  }
+  return left->value () - right->value ();
+}

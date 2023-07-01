@@ -17,14 +17,24 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __MOD_BRANCH_INCLUDED
+#define __MOD_BRANCH_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Branch.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class ModBranch : public Branch {
+public:
+  ModBranch (void);
+
+  ModBranch (const ModBranch&) = delete;
+  ModBranch (ModBranch&&) = delete;
+
+  virtual ~ModBranch (void);
+
+  ModBranch& operator= (const ModBranch&) = delete;
+  ModBranch& operator= (ModBranch&&) = delete;
+
+  int64_t value (void) const override;
+};
 
 #endif

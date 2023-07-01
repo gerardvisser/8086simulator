@@ -37,6 +37,7 @@ private:
   int m_operandCount;
   int m_tokenCount;
   Type m_type;
+  int m_size;
 
   Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens, std::vector<Operand>& operands);
 
@@ -51,6 +52,8 @@ public:
 
   Operand& operand (int index);
   int operandCount (void) const;
+  int size (void) const;
+  void size (int val);
   std::shared_ptr<Token>& token (int index) const;
   int tokenCount (void) const;
   Type type (void) const;

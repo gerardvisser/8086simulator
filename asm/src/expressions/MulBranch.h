@@ -17,14 +17,24 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __MUL_BRANCH_INCLUDED
+#define __MUL_BRANCH_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Branch.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class MulBranch : public Branch {
+public:
+  MulBranch (void);
+
+  MulBranch (const MulBranch&) = delete;
+  MulBranch (MulBranch&&) = delete;
+
+  virtual ~MulBranch (void);
+
+  MulBranch& operator= (const MulBranch&) = delete;
+  MulBranch& operator= (MulBranch&&) = delete;
+
+  int64_t value (void) const override;
+};
 
 #endif

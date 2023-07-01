@@ -17,14 +17,27 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILER_INCLUDED
-#define __COMPILER_INCLUDED
+#ifndef __BRANCH_INCLUDED
+#define __BRANCH_INCLUDED
 
-#include <istream>
-#include "Compilation.h"
+#include "Expression.h"
 
-namespace compiler {
-  Compilation compile (std::istream& stream, int startOffset);
-}
+class Branch : public Expression {
+private:
+  Expression* m_leftChild;
+  Expression* m_rightChild;
+  const int m_precedence;
+
+public:
+  explicit Branch (int precedence);
+
+  virtual ~Branch (void);
+
+  const Expression* leftChild (void) const;
+  void leftChild (Expression* expression);
+  int precedence (void) const;
+  const Expression* rightChild (void) const;
+  void rightChild (Expression* expression);
+};
 
 #endif
