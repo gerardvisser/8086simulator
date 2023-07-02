@@ -72,7 +72,7 @@ static void checkAndAddConstant (
     std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels,
     std::shared_ptr<Statement>& statement) {
-  std::shared_ptr<Token> token = statement->token (0);
+  std::shared_ptr<Token>& token = statement->token (0);
   const std::string& constant = token->text ();
   auto labelsIter = labels.find (constant);
   if (labelsIter != labels.end ()) {

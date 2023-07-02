@@ -41,6 +41,8 @@ public:
       const int tokenCount,
       const std::map<std::string, int64_t>& constants,
       const std::map<std::string, int>& labels);
+  static bool isExpressionStart (Token::Type tokenType);
+  static bool isExpressionToken (Token::Type tokenType);
 
   Branch* addBranch (char op);
   Branch* parent (void);

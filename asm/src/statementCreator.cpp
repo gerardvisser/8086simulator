@@ -20,6 +20,7 @@
 #include "statementCreator.h"
 #include "tokenSubtypes.h"
 #include "Operand.h"
+#include "expressions/Expression.h"
 #include "exception/ParseException.h"
 #include <cstdarg>
 
@@ -32,8 +33,6 @@ static void assureNotAtEnd (TokenIterator& tokenIter, const TokenIterator& token
 static Operand createOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
 static Operand createPointerOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
 static void createStatement (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd);
-static bool isExpressionStart (Token::Type tokenType);
-static bool isExpressionToken (Token::Type tokenType);
 
 std::vector<std::shared_ptr<Statement>> statementCreator::create (std::vector<std::shared_ptr<Token>>& tokens) {
   std::vector<std::shared_ptr<Statement>> statements;
@@ -69,7 +68,7 @@ static void addExpression (Statement::Builder& builder, TokenIterator& tokenIter
   int parenthesesOpen = token->type () == Token::Type::LEFT_PARENTHESIS;
   int state = parenthesesOpen == 0 ? 1 : 2;
 
-  while (tokenIter != tokensEnd && isExpressionToken ((*tokenIter)->type ())) {
+  while (tokenIter != tokensEnd && Expression::isExpressionToken ((*tokenIter)->type ())) {
     token = *tokenIter;
     if (state == 1) {
       /* prev token was a RIGHT_PARENTHESIS, an IDENTIFIER or a NUMBER */
@@ -193,7 +192,7 @@ static void createForIdentifier (Statement::Builder& builder, TokenIterator& tok
   assureNotAtEnd (tokenIter, tokensEnd, "expression expected");
 
   token = *tokenIter;
-  assureCondition (isExpressionStart (token->type ()), "Error in line %d, column %d: illegal start of expression", token->line (), token->column ());
+  assureCondition (Expression::isExpressionStart (token->type ()), "Error in line %d, column %d: illegal start of expression", token->line (), token->column ());
   builder.type (Statement::Type::CONSTANT);
   addExpression (builder, tokenIter, tokensEnd);
 }
@@ -355,7 +354,7 @@ static void createForSegreg (Statement::Builder& builder, TokenIterator& tokenIt
 
 static Operand createOperand (Statement::Builder& builder, TokenIterator& tokenIter, const TokenIterator& tokensEnd) {
   std::shared_ptr<Token> token = *tokenIter;
-  if (isExpressionStart (token->type ())) {
+  if (Expression::isExpressionStart (token->type ())) {
     addExpression (builder, tokenIter, tokensEnd);
     return Operand (Operand::Width::UNDEFINED, Operand::Type::IMMEDIATE, 0);
   } else if (token->type () == Token::Type::REG) {
@@ -415,7 +414,7 @@ static Operand createPointerOperand (Statement::Builder& builder, TokenIterator&
         }
         builder.addToken (token);
         ++tokenIter;
-      } else if (isExpressionStart (token->type ())) {
+      } else if (Expression::isExpressionStart (token->type ())) {
         addExpression (builder, tokenIter, tokensEnd);
         code |= 1;
       } else {
@@ -532,12 +531,4 @@ static void createStatement (Statement::Builder& builder, TokenIterator& tokenIt
   default:
     throw ParseException ("Error in line %d, column %d: an instruction identifier, label or constant definition expected.", token->line (), token->column ());
   }
-}
-
-static bool isExpressionStart (Token::Type tokenType) {
-  return tokenType == Token::Type::NUMBER || tokenType == Token::Type::IDENTIFIER || tokenType == Token::Type::LEFT_PARENTHESIS;
-}
-
-static bool isExpressionToken (Token::Type tokenType) {
-  return isExpressionStart (tokenType) || tokenType == Token::Type::OPERATOR || tokenType == Token::Type::RIGHT_PARENTHESIS;
 }

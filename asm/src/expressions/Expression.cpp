@@ -103,11 +103,6 @@ static int64_t findValue (
   return labelsIter->second;
 }
 
-static bool isExpressionToken (Token::Type tokenType) {
-  return tokenType == Token::Type::NUMBER || tokenType == Token::Type::IDENTIFIER || tokenType == Token::Type::LEFT_PARENTHESIS ||
-      tokenType == Token::Type::OPERATOR || tokenType == Token::Type::RIGHT_PARENTHESIS;
-}
-
 std::unique_ptr<const Expression> Expression::create (
     std::shared_ptr<Token>* tokens,
     const int tokenCount,
@@ -179,4 +174,12 @@ std::unique_ptr<const Expression> Expression::create (
     result = result->parent ();
   }
   return std::unique_ptr<const Expression> (result);
+}
+
+bool Expression::isExpressionStart (Token::Type tokenType) {
+  return tokenType == Token::Type::NUMBER || tokenType == Token::Type::IDENTIFIER || tokenType == Token::Type::LEFT_PARENTHESIS;
+}
+
+bool Expression::isExpressionToken (Token::Type tokenType) {
+  return isExpressionStart (tokenType) || tokenType == Token::Type::OPERATOR || tokenType == Token::Type::RIGHT_PARENTHESIS;
 }
