@@ -21,7 +21,10 @@
 #include "parser.h"
 #include "tokenSubtypes.h"
 #include "exception/ParseException.h"
+#include "expressions/Expression.h"
 #include <map>
+
+#define UNDEFINED_CONSTANT 0x8000000000000000
 
 static void checkAndAddConstant (
     std::map<std::string, int64_t>& constants,
@@ -36,8 +39,14 @@ static void checkInstructionAndSetSize (
     std::vector<std::shared_ptr<Statement>>& jumps,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels);
+static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo);
 static std::map<std::string, int> getLabels (std::vector<std::shared_ptr<Statement>>& statements);
 static void setDataStatementSize (std::shared_ptr<Statement>& statement);
+static void setPointerDisplacement (
+    std::shared_ptr<Statement>& statement,
+    int operandNo,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels);
 
 Compilation compiler::compile (std::istream& stream, int startOffset) {
   std::vector<std::shared_ptr<Statement>> statements = parser::parse (stream);
@@ -68,6 +77,38 @@ Compilation compiler::compile (std::istream& stream, int startOffset) {
   /* TODO */
 }
 
+static int calculateExpression (
+    std::shared_ptr<Statement>& statement,
+    int expressionStartIndex,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+  std::shared_ptr<Token>* tokens = statement->tokens () + expressionStartIndex;
+  int tokenCount = statement->tokenCount () - expressionStartIndex;
+  std::unique_ptr<const Expression> expression = Expression::create (tokens, tokenCount, constants, labels);
+  int64_t value = expression->value ();
+  if (value < -0x80000000 || value > 0xFFFFFFFF) {
+    throw ParseException ("Error in line %d, column %d: expression value too large.", tokens[0]->line (), tokens[0]->column ());
+  }
+  return value;
+}
+
+static bool canCalculateConstant (
+    std::shared_ptr<Statement>& statement,
+    int expressionStartIndex,
+    const std::map<std::string, int64_t>& constants) {
+  int i = expressionStartIndex;
+  while (i < statement->tokenCount () && Expression::isExpressionToken (statement->token (i)->type ())) {
+    std::shared_ptr<Token> token = statement->token (i);
+    if (token->type () == Token::Type::IDENTIFIER) {
+      auto constantsIter = constants.find (token->text ());
+      if (constantsIter == constants.end () || constantsIter->second == UNDEFINED_CONSTANT) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 static void checkAndAddConstant (
     std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels,
@@ -83,7 +124,12 @@ static void checkAndAddConstant (
     throw ParseException ("Error in line %d, column %d: second declaration of constant %s.", token->line (), token->column (), constant.c_str ());
   }
   checkForUnknownIdentifiers (statement, constants, labels);
-  constants[constant] = 0x8000000000000000;
+
+  int64_t value = UNDEFINED_CONSTANT;
+  if (canCalculateConstant (statement, 1, constants)) {
+    value = calculateExpression (statement, 1, constants, labels);
+  }
+  constants[constant] = value;
 }
 
 static void checkForUnknownIdentifiers (
@@ -120,18 +166,17 @@ static void checkJumpAndSetSize (
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels) {
   if (statement->operandCount () == 1) {
+    //opcode=0xFF
     Operand& operand = statement->operand (0);
     if (operand.type () == Operand::Type::POINTER) {
       checkForUnknownIdentifiers (statement, constants, labels);
       if (operand.id () > 7) {
-        /* TODO:
-           i) check displacement doesn't contain labels
-           ii) determine displacement
-
-           Dit betekent ook dat de constanten die in de displacement-expressie mogen voorkomen zelf ook
-           niet van labels af mogen hangen. Je moet eigenlijk de constanten bij het aanmaken al checken
-           op labels en als ze die niet hebben meteen uitrekenen.  Als een constante dan nog de waarde 0x8000000000000000
-           heeft in de map, dan is zij afhankelijk van een of meer labels. */
+        setPointerDisplacement (statement, 0, constants, labels);
+        if (statement->displacement () < -0x80 || statement->displacement () > 0x7F) {
+          statement->size (4);
+        } else {
+          statement->size (3);
+        }
       } else if (operand.id () == 6) {
         statement->size (4);
       } else {
@@ -146,12 +191,15 @@ static void checkJumpAndSetSize (
       throw ParseException ("Error in line %d, column %d: unknown label %s.", token->line (), token->column (), token->text ().c_str ());
     }
     if (statement->token (0)->subtype () == TOKEN_SUBTYPE_JMP) {
+      //opcode=0xEB or 0xE9
       jumps.push_back (statement);
       statement->size (2);
     } else {
+      //opcode=0xE8
       statement->size (3);
     }
   } else {
+    //opcode=0x9A or 0xEA
     statement->size (5);
   }
 }
@@ -161,10 +209,11 @@ static void checkInstructionAndSetSize (
     std::vector<std::shared_ptr<Statement>>& jumps,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels) {
-  std::shared_ptr<Token> token = statement->token (0);//TODO: ref?
+  std::shared_ptr<Token> token = statement->token (0);
   switch (token->type ()) {
   case Token::Type::SEGREG:
   case Token::Type::INSTR0:
+    //opcode=token->subtype() in case of Token::Type::INSTR0
     statement->size (1);
     break;
 
@@ -199,6 +248,20 @@ static void checkInstructionAndSetSize (
   }
 }
 
+static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo) {
+  int i = 1;
+  if (operandNo == 1) {
+    while (statement->token (i)->type () != Token::Type::COMMA) {
+      ++i;
+    }
+    ++i;
+  }
+  while (!Expression::isExpressionStart (statement->token (i)->type ())) {
+    ++i;
+  }
+  return i;
+}
+
 static std::map<std::string, int> getLabels (std::vector<std::shared_ptr<Statement>>& statements) {
   std::map<std::string, int> labels;
   for (std::shared_ptr<Statement> statement : statements) {
@@ -226,4 +289,22 @@ static void setDataStatementSize (std::shared_ptr<Statement>& statement) {
     }
   }
   statement->size (size);
+}
+
+static void setPointerDisplacement (
+    std::shared_ptr<Statement>& statement,
+    int operandNo,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+  int expressionStart = findExpressionStart (statement, operandNo);
+  if (!canCalculateConstant (statement, expressionStart, constants)) {
+    std::shared_ptr<Token> token = statement->token (expressionStart);
+    throw ParseException ("Error in line %d, column %d: cannot calculate displacement.", token->line (), token->column ());
+  }
+  int displacement = calculateExpression (statement, expressionStart, constants, labels);
+  displacement &= 0xFFFF;
+  if ((displacement & 0x8000) != 0) {
+    displacement |= 0xFFFF0000;
+  }
+  statement->displacement (displacement);
 }

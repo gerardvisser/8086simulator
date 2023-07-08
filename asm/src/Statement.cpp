@@ -21,7 +21,7 @@
 #include "Statement.h"
 
 Statement::Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens, std::vector<Operand>& operands) :
-    m_type (type), m_tokenCount (tokens.size ()), m_operandCount (operands.size ()), m_size (0) {
+    m_type (type), m_tokenCount (tokens.size ()), m_operandCount (operands.size ()), m_size (0), m_displacement (0) {
   m_tokens = new std::shared_ptr<Token>[m_tokenCount];
   std::copy (tokens.begin (), tokens.end (), m_tokens);
   std::copy (operands.begin (), operands.end (), m_operands);
@@ -29,6 +29,14 @@ Statement::Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens, st
 
 Statement::~Statement (void) {
   delete[] m_tokens;
+}
+
+int Statement::displacement (void) const {
+  return m_displacement;
+}
+
+void Statement::displacement (int val) {
+  m_displacement = val;
 }
 
 Operand& Statement::operand (int index) {
@@ -53,6 +61,10 @@ std::shared_ptr<Token>& Statement::token (int index) const {
 
 int Statement::tokenCount (void) const {
   return m_tokenCount;
+}
+
+std::shared_ptr<Token>* Statement::tokens (void) const {
+  return m_tokens;
 }
 
 Statement::Type Statement::type (void) const {
