@@ -34,10 +34,13 @@ private:
   Width m_width;
   Type m_type;
   int m_id;
+  int m_displacement;
 
 public:
   explicit Operand (Width width = Width::UNDEFINED, Type type = Type::SEGMENT_REGISTER, int id = -1);
 
+  int displacement (void) const;
+  void displacement (int val);
   int id (void) const;
   Type type (void) const;
   Width width (void) const;

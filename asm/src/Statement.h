@@ -38,7 +38,6 @@ private:
   int m_tokenCount;
   Type m_type;
   int m_size;
-  int m_displacement;
 
   Statement (Type type, std::vector<std::shared_ptr<Token>>& tokens, std::vector<Operand>& operands);
 
@@ -51,8 +50,6 @@ public:
   Statement& operator= (const Statement&) = delete;
   Statement& operator= (Statement&&) = delete;
 
-  int displacement (void) const;
-  void displacement (int val);
   Operand& operand (int index);
   int operandCount (void) const;
   int size (void) const;

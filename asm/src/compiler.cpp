@@ -41,6 +41,11 @@ static void checkInstructionAndSetSize (
     const std::map<std::string, int>& labels);
 static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo);
 static std::map<std::string, int> getLabels (std::vector<std::shared_ptr<Statement>>& statements);
+static int getSizeOfInstructionWithPointerOperand (
+    std::shared_ptr<Statement>& statement,
+    int operandNo,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels);
 static void setDataStatementSize (std::shared_ptr<Statement>& statement);
 static void setPointerDisplacement (
     std::shared_ptr<Statement>& statement,
@@ -160,6 +165,47 @@ static void checkConditionalJmpAndSetSize (
   }
 }
 
+static void checkInstructionWithOneOperandAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  std::shared_ptr<Token> token = statement->token (0);
+  Operand& operand = statement->operand (0);
+  int instrType = token->subtype ();
+
+  if (operand.type () == Operand::Type::SEGMENT_REGISTER && !(instrType == TOKEN_SUBTYPE_PUSH || instrType == TOKEN_SUBTYPE_POP)) {
+    throw ParseException ("Error in line %d, column %d: a segment register is not allowed as operand for this instruction.", token->line (), token->column ());
+  }
+  if (operand.type () == Operand::Type::IMMEDIATE) {
+    throw ParseException ("Error in line %d, column %d: this instruction cannot have an immediate operand.", token->line (), token->column ());
+  }
+
+  if (instrType == TOKEN_SUBTYPE_PUSH || instrType == TOKEN_SUBTYPE_POP) {
+    if (operand.width () == Operand::Width::BYTE) {
+      throw ParseException ("Error in line %d, column %d: this instruction can only have 16 bits wide operands.", token->line (), token->column ());
+    }
+    operand.width (Operand::Width::WORD);
+  }
+  if (operand.type () == Operand::Type::POINTER) {
+    token = statement->token (1);
+    if (operand.width () == Operand::Width::UNDEFINED) {
+      throw ParseException ("Error in line %d, column %d: operand width unknown.", token->line (), token->column ());
+    }
+    checkForUnknownIdentifiers (statement, constants, labels);
+    statement->size (getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels));
+    return;
+  }
+
+  if (instrType == TOKEN_SUBTYPE_INC || instrType == TOKEN_SUBTYPE_DEC) {
+    statement->size (operand.width () == Operand::Width::WORD ? 1 : 2);
+  } else if (instrType == TOKEN_SUBTYPE_PUSH || instrType == TOKEN_SUBTYPE_POP) {
+    statement->size (1);
+  } else {
+    statement->size (2);
+  }
+}
+
 static void checkJumpAndSetSize (
     std::shared_ptr<Statement>& statement,
     std::vector<std::shared_ptr<Statement>>& jumps,
@@ -170,18 +216,7 @@ static void checkJumpAndSetSize (
     Operand& operand = statement->operand (0);
     if (operand.type () == Operand::Type::POINTER) {
       checkForUnknownIdentifiers (statement, constants, labels);
-      if (operand.id () > 7) {
-        setPointerDisplacement (statement, 0, constants, labels);
-        if (statement->displacement () < -0x80 || statement->displacement () > 0x7F) {
-          statement->size (4);
-        } else {
-          statement->size (3);
-        }
-      } else if (operand.id () == 6) {
-        statement->size (4);
-      } else {
-        statement->size (2);
-      }
+      statement->size (getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels));
     } else {
       statement->size (2);
     }
@@ -221,6 +256,7 @@ static void checkInstructionAndSetSize (
     break;
 
   case Token::Type::INSTR1:
+    checkInstructionWithOneOperandAndSetSize (statement, constants, labels);
     break;
 
   case Token::Type::INSTR2:
@@ -278,6 +314,34 @@ static std::map<std::string, int> getLabels (std::vector<std::shared_ptr<Stateme
   return labels;
 }
 
+/*
+   Returns the basic size of an instruction with a pointer operand.  If the instruction also
+   has an immediate value then the value returned by this functions needs to be increased.
+   An exception is the size of the 'mov acc, [address]' and 'mov [address], acc' instructions.
+*/
+static int getSizeOfInstructionWithPointerOperand (
+    std::shared_ptr<Statement>& statement,
+    int operandNo,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  int size;
+  Operand& operand = statement->operand (operandNo);
+  if (operand.id () > 7) {
+    setPointerDisplacement (statement, operandNo, constants, labels);
+    if (operand.displacement () < -0x80 || operand.displacement () > 0x7F) {
+      size = 4;
+    } else {
+      size = 3;
+    }
+  } else if (operand.id () == 6) {
+    size = 4;
+  } else {
+    size = 2;
+  }
+  return size;
+}
+
 static void setDataStatementSize (std::shared_ptr<Statement>& statement) {
   int size = 0;
   for (int i = 1; i < statement->tokenCount (); ++i) {
@@ -306,5 +370,5 @@ static void setPointerDisplacement (
   if ((displacement & 0x8000) != 0) {
     displacement |= 0xFFFF0000;
   }
-  statement->displacement (displacement);
+  statement->operand (operandNo).displacement (displacement);
 }

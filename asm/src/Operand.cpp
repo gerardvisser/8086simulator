@@ -19,7 +19,15 @@
 
 #include "Operand.h"
 
-Operand::Operand (Width width, Type type, int id) : m_width (width), m_type (type), m_id (id) {
+Operand::Operand (Width width, Type type, int id) : m_width (width), m_type (type), m_id (id), m_displacement (0) {
+}
+
+int Operand::displacement (void) const {
+  return m_displacement;
+}
+
+void Operand::displacement (int val) {
+  m_displacement = val;
 }
 
 int Operand::id (void) const {
