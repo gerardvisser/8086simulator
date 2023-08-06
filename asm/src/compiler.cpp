@@ -24,6 +24,7 @@
 #include "expressions/Expression.h"
 #include <map>
 
+#define ACCUMULATOR 0
 #define UNDEFINED_CONSTANT 0x8000000000000000
 
 static void checkAndAddConstant (
@@ -40,6 +41,7 @@ static void checkInstructionAndSetSize (
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels);
 static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo);
+static int findTokenIndexOfOperand (std::shared_ptr<Statement>& statement, int operandNo);
 static std::map<std::string, int> getLabels (std::vector<std::shared_ptr<Statement>>& statements);
 static int getSizeOfInstructionWithPointerOperand (
     std::shared_ptr<Statement>& statement,
@@ -50,6 +52,10 @@ static void setDataStatementSize (std::shared_ptr<Statement>& statement);
 static void setPointerDisplacement (
     std::shared_ptr<Statement>& statement,
     int operandNo,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels);
+static void setWidthOfImmediateOperandOfAddInstruction (
+    std::shared_ptr<Statement>& statement,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels);
 
@@ -87,12 +93,27 @@ static int calculateExpression (
     int expressionStartIndex,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels) {
+
   std::shared_ptr<Token>* tokens = statement->tokens () + expressionStartIndex;
   int tokenCount = statement->tokenCount () - expressionStartIndex;
   std::unique_ptr<const Expression> expression = Expression::create (tokens, tokenCount, constants, labels);
   int64_t value = expression->value ();
   if (value < -0x80000000 || value > 0xFFFFFFFF) {
     throw ParseException ("Error in line %d, column %d: expression value too large.", tokens[0]->line (), tokens[0]->column ());
+  }
+  return value;
+}
+
+static int calculateWordValue (
+    std::shared_ptr<Statement>& statement,
+    int expressionStartIndex,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  int value = calculateExpression (statement, expressionStartIndex, constants, labels);
+  value &= 0xFFFF;
+  if ((value & 0x8000) != 0) {
+    value |= 0xFFFF0000;
   }
   return value;
 }
@@ -165,6 +186,21 @@ static void checkConditionalJmpAndSetSize (
   }
 }
 
+static void checkInAndSetSize (std::shared_ptr<Statement>& statement) {
+  Operand& srcOperand = statement->operand (1);
+  if (srcOperand.type () == Operand::Type::REGISTER) {
+    statement->size (1);
+  } else {
+    std::shared_ptr<Token>& token = statement->token (3);
+    int port = token->subtype ();
+    if (port <= -1 || port > 0xFF) {
+      throw ParseException ("Error in line %d, column %d: the port value should be in the range [0, 0xFF].", token->line (), token->column ());
+    }
+    srcOperand.width (Operand::Width::BYTE);
+    statement->size (2);
+  }
+}
+
 static void checkInstructionWithOneOperandAndSetSize (
     std::shared_ptr<Statement>& statement,
     const std::map<std::string, int64_t>& constants,
@@ -206,6 +242,331 @@ static void checkInstructionWithOneOperandAndSetSize (
   }
 }
 
+static void checkOperandWidthsAreTheSame(std::shared_ptr<Statement>& statement) {
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+  if (dstOperand.width () != srcOperand.width ()) {
+    std::shared_ptr<Token> token = statement->token (0);
+    throw ParseException ("Error in line %d, column %d: operands of instruction are of different size.", token->line (), token->column ());
+  }
+}
+
+static void checkAddAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      checkOperandWidthsAreTheSame (statement);
+      statement->size (2);
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      srcOperand.width (dstOperand.width ());
+      statement->size (getSizeOfInstructionWithPointerOperand (statement, 1, constants, labels));
+    } else {
+      if (dstOperand.id () == ACCUMULATOR) {
+        srcOperand.width (dstOperand.width ());
+        statement->size (dstOperand.width () == Operand::Width::BYTE ? 2 : 3);
+      } else {
+        setWidthOfImmediateOperandOfAddInstruction (statement, constants, labels);
+        statement->size (srcOperand.width () == Operand::Width::BYTE ? 3 : 4);
+      }
+    }
+  } else {
+    /* dstOperand.type () == Operand::Type::POINTER */
+    int size = getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels);
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        dstOperand.width (srcOperand.width ());
+      } else {
+        checkOperandWidthsAreTheSame (statement);
+      }
+    } else {
+      /* srcOperand.type () == Operand::Type::IMMEDIATE */
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        std::shared_ptr<Token> token = statement->token (1);
+        throw ParseException ("Error in line %d, column %d: operand size unknown.", token->line (), token->column ());
+      }
+      setWidthOfImmediateOperandOfAddInstruction (statement, constants, labels);
+      size += srcOperand.width () == Operand::Width::BYTE ? 1 : 2;
+    }
+    statement->size (size);
+  }
+}
+
+static void checkMovAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    if (srcOperand.type () == Operand::Type::REGISTER || srcOperand.type () == Operand::Type::SEGMENT_REGISTER) {
+      checkOperandWidthsAreTheSame (statement);
+      statement->size (2);
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      srcOperand.width (dstOperand.width ());
+      if (dstOperand.id () == ACCUMULATOR && srcOperand.id () == 6) {
+        statement->size (3);
+      } else {
+        statement->size (getSizeOfInstructionWithPointerOperand (statement, 1, constants, labels));
+      }
+    } else {
+      srcOperand.width (dstOperand.width ());
+      statement->size (dstOperand.width () == Operand::Width::BYTE ? 2 : 3);
+    }
+  } else if (dstOperand.type () == Operand::Type::POINTER) {
+    int size = getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels);
+    if (srcOperand.type () == Operand::Type::SEGMENT_REGISTER) {
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        dstOperand.width (srcOperand.width ());
+      } else {
+        checkOperandWidthsAreTheSame (statement);
+      }
+    } else if (srcOperand.type () == Operand::Type::REGISTER) {
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        dstOperand.width (srcOperand.width ());
+      } else {
+        checkOperandWidthsAreTheSame (statement);
+      }
+      if (dstOperand.id () == 6 && srcOperand.id () == ACCUMULATOR) {
+        size = 3;
+      }
+    } else {
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        std::shared_ptr<Token> token = statement->token (1);
+        throw ParseException ("Error in line %d, column %d: operand size unknown.", token->line (), token->column ());
+      }
+      srcOperand.width (dstOperand.width ());
+      size += srcOperand.width () == Operand::Width::BYTE ? 1 : 2;
+    }
+    statement->size (size);
+  } else {
+    /* dstOperand.type () == Operand::Type::SEGMENT_REGISTER */
+    if (srcOperand.type () == Operand::Type::SEGMENT_REGISTER) {
+      std::shared_ptr<Token> token = statement->token (0);
+      throw ParseException ("Error in line %d, column %d: cannot directly move the value of one segment register into another.", token->line (), token->column ());
+    } else if (srcOperand.type () == Operand::Type::REGISTER) {
+      checkOperandWidthsAreTheSame (statement);
+      statement->size (2);
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      srcOperand.width (Operand::Width::WORD);
+      int size = getSizeOfInstructionWithPointerOperand (statement, 1, constants, labels);
+      statement->size (size);
+    } else {
+      std::shared_ptr<Token> token = statement->token (findTokenIndexOfOperand (statement, 1));
+      throw ParseException ("Error in line %d, column %d: cannot directly set the value of a segment register (with an immediate).", token->line (), token->column ());
+    }
+  }
+}
+
+static void checkShiftAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (srcOperand.type () == Operand::Type::REGISTER && !(srcOperand.width () == Operand::Width::BYTE && srcOperand.id () == 1)
+      || srcOperand.type () == Operand::Type::POINTER) {
+    std::shared_ptr<Token> token = statement->token (findTokenIndexOfOperand (statement, 1));
+    throw ParseException ("Error in line %d, column %d: only CL or an immediate value allowed as source operand.", token->line (), token->column ());
+  }
+  int immValue;
+  if (srcOperand.type () == Operand::Type::IMMEDIATE) {
+    int expressionStart = findExpressionStart (statement, 1);
+    if (!canCalculateConstant (statement, expressionStart, constants)) {
+      std::shared_ptr<Token> token = statement->token (expressionStart);
+      throw ParseException ("Error in line %d, column %d: the value to shift should be a constant.", token->line (), token->column ());
+    }
+    immValue = calculateWordValue (statement, expressionStart, constants, labels);
+    if (immValue <= -1 || immValue > 0xFF) {
+      std::shared_ptr<Token> token = statement->token (expressionStart);
+      throw ParseException ("Error in line %d, column %d: the value to shift should be greater than 0 but less than 256.", token->line (), token->column ());
+    }
+  }
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      statement->size (2);
+    } else {
+      statement->size (immValue == 1 ? 2 : 3);
+    }
+  } else {
+    /* dstOperand.type () == Operand::Type::POINTER */
+    if (dstOperand.width () == Operand::Width::UNDEFINED) {
+      std::shared_ptr<Token> token = statement->token (1);
+      throw ParseException ("Error in line %d, column %d: operand size unknown.", token->line (), token->column ());
+    }
+    int size = getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels);
+    if (srcOperand.type () == Operand::Type::IMMEDIATE) {
+      size += immValue != 1;
+    }
+    statement->size (size);
+  }
+}
+
+static void checkTestAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      checkOperandWidthsAreTheSame (statement);
+      statement->size (2);
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      srcOperand.width (dstOperand.width ());
+      statement->size (getSizeOfInstructionWithPointerOperand (statement, 1, constants, labels));
+    } else {
+      srcOperand.width (dstOperand.width ());
+      if (dstOperand.id () == ACCUMULATOR) {
+        statement->size (srcOperand.width () == Operand::Width::BYTE ? 2 : 3);
+      } else {
+        statement->size (srcOperand.width () == Operand::Width::BYTE ? 3 : 4);
+      }
+    }
+  } else if (dstOperand.type () == Operand::Type::POINTER) {
+    int size = getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels);
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        dstOperand.width (srcOperand.width ());
+      } else {
+        checkOperandWidthsAreTheSame (statement);
+      }
+    } else {
+      if (dstOperand.width () == Operand::Width::UNDEFINED) {
+        std::shared_ptr<Token> token = statement->token (1);
+        throw ParseException ("Error in line %d, column %d: operand size unknown.", token->line (), token->column ());
+      }
+      srcOperand.width (dstOperand.width ());
+      size += srcOperand.width () == Operand::Width::BYTE ? 1 : 2;
+    }
+    statement->size (size);
+  } else {
+    /* dstOperand.type () == Operand::Type::IMMEDIATE */
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      dstOperand.width (srcOperand.width ());
+      if (srcOperand.id () == ACCUMULATOR) {
+        statement->size (srcOperand.width () == Operand::Width::BYTE ? 2 : 3);
+      } else {
+        statement->size (srcOperand.width () == Operand::Width::BYTE ? 3 : 4);
+      }
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      std::shared_ptr<Token> token = statement->token (findTokenIndexOfOperand (statement, 1));
+      throw ParseException ("Error in line %d, column %d: operand size unknown; switch the operands.", token->line (), token->column ());
+    } else {
+      std::shared_ptr<Token> token = statement->token (findTokenIndexOfOperand (statement, 1));
+      throw ParseException ("Error in line %d, column %d: the test instruction can't have two immediate operands.", token->line (), token->column ());
+    }
+  }
+}
+
+static void checkXchgAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (srcOperand.type () == Operand::Type::IMMEDIATE) {
+    std::shared_ptr<Token> token = statement->token (findTokenIndexOfOperand (statement, 1));
+    throw ParseException ("Error in line %d, column %d: the xchg instruction can't have immediate operands.", token->line (), token->column ());
+  }
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      checkOperandWidthsAreTheSame (statement);
+      if (dstOperand.id () == ACCUMULATOR || srcOperand.id () == ACCUMULATOR) {
+        statement->size (1);
+      } else {
+        statement->size (2);
+      }
+    } else {
+      srcOperand.width (dstOperand.width ());
+      statement->size (getSizeOfInstructionWithPointerOperand (statement, 1, constants, labels));
+    }
+  } else {
+    /* dstOperand.type () == Operand::Type::POINTER */
+    if (dstOperand.width () == Operand::Width::UNDEFINED) {
+      dstOperand.width (srcOperand.width ());
+    } else {
+      checkOperandWidthsAreTheSame (statement);
+    }
+    statement->size (getSizeOfInstructionWithPointerOperand (statement, 0, constants, labels));
+  }
+}
+
+static void checkInstructionWithTwoOperandsAndSetSize (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+  int instrType = statement->token (0)->subtype ();
+
+  if (dstOperand.type () == Operand::Type::IMMEDIATE && instrType != TOKEN_SUBTYPE_TEST) {
+    std::shared_ptr<Token> token = statement->token (1);
+    throw ParseException ("Error in line %d, column %d: immediate operand not allowed as destination.", token->line (), token->column ());
+  }
+  if ((dstOperand.type () == Operand::Type::SEGMENT_REGISTER || srcOperand.type () == Operand::Type::SEGMENT_REGISTER) && instrType != TOKEN_SUBTYPE_MOV) {
+    std::shared_ptr<Token> token = statement->token (0);
+    throw ParseException ("Error in line %d, column %d: this instruction cannot have a segment register as operand.", token->line (), token->column ());
+  }
+  if (dstOperand.type () == Operand::Type::POINTER && srcOperand.type () == Operand::Type::POINTER) {
+    std::shared_ptr<Token> token = statement->token (0);
+    throw ParseException ("Error in line %d, column %d: an instruction cannot have two pointer operands.", token->line (), token->column ());
+  }
+  checkForUnknownIdentifiers (statement, constants, labels);
+
+  switch (instrType) {
+  case TOKEN_SUBTYPE_ADD:
+  case TOKEN_SUBTYPE_OR:
+  case TOKEN_SUBTYPE_ADC:
+  case TOKEN_SUBTYPE_SBB:
+  case TOKEN_SUBTYPE_AND:
+  case TOKEN_SUBTYPE_SUB:
+  case TOKEN_SUBTYPE_XOR:
+  case TOKEN_SUBTYPE_CMP:
+    checkAddAndSetSize (statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_MOV:
+    checkMovAndSetSize (statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_TEST:
+    checkTestAndSetSize (statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_XCHG:
+    checkXchgAndSetSize (statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_ROL:
+  case TOKEN_SUBTYPE_ROR:
+  case TOKEN_SUBTYPE_RCL:
+  case TOKEN_SUBTYPE_RCR:
+  case TOKEN_SUBTYPE_SHL:
+  case TOKEN_SUBTYPE_SHR:
+  case TOKEN_SUBTYPE_SAL:
+  case TOKEN_SUBTYPE_SAR:
+    checkShiftAndSetSize (statement, constants, labels);
+    break;
+  }
+}
+
 static void checkJumpAndSetSize (
     std::shared_ptr<Statement>& statement,
     std::vector<std::shared_ptr<Statement>>& jumps,
@@ -239,6 +600,21 @@ static void checkJumpAndSetSize (
   }
 }
 
+static void checkOutAndSetSize (std::shared_ptr<Statement>& statement) {
+  Operand& dstOperand = statement->operand (0);
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    statement->size (1);
+  } else {
+    std::shared_ptr<Token>& token = statement->token (1);
+    int port = token->subtype ();
+    if (port <= -1 || port > 0xFF) {
+      throw ParseException ("Error in line %d, column %d: the port value should be in the range [0, 0xFF].", token->line (), token->column ());
+    }
+    dstOperand.width (Operand::Width::BYTE);
+    statement->size (2);
+  }
+}
+
 static void checkInstructionAndSetSize (
     std::shared_ptr<Statement>& statement,
     std::vector<std::shared_ptr<Statement>>& jumps,
@@ -260,15 +636,19 @@ static void checkInstructionAndSetSize (
     break;
 
   case Token::Type::INSTR2:
+    checkInstructionWithTwoOperandsAndSetSize (statement, constants, labels);
     break;
 
   case Token::Type::LOAD:
+    statement->size (getSizeOfInstructionWithPointerOperand (statement, 1, constants, labels));
     break;
 
   case Token::Type::IN:
+    checkInAndSetSize (statement);
     break;
 
   case Token::Type::OUT:
+    checkOutAndSetSize (statement);
     break;
 
   case Token::Type::INT:
@@ -285,14 +665,19 @@ static void checkInstructionAndSetSize (
 }
 
 static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo) {
+  int i = findTokenIndexOfOperand (statement, operandNo);
+  while (!Expression::isExpressionStart (statement->token (i)->type ())) {
+    ++i;
+  }
+  return i;
+}
+
+static int findTokenIndexOfOperand (std::shared_ptr<Statement>& statement, int operandNo) {
   int i = 1;
   if (operandNo == 1) {
     while (statement->token (i)->type () != Token::Type::COMMA) {
       ++i;
     }
-    ++i;
-  }
-  while (!Expression::isExpressionStart (statement->token (i)->type ())) {
     ++i;
   }
   return i;
@@ -360,15 +745,32 @@ static void setPointerDisplacement (
     int operandNo,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels) {
+
   int expressionStart = findExpressionStart (statement, operandNo);
   if (!canCalculateConstant (statement, expressionStart, constants)) {
     std::shared_ptr<Token> token = statement->token (expressionStart);
     throw ParseException ("Error in line %d, column %d: cannot calculate displacement.", token->line (), token->column ());
   }
-  int displacement = calculateExpression (statement, expressionStart, constants, labels);
-  displacement &= 0xFFFF;
-  if ((displacement & 0x8000) != 0) {
-    displacement |= 0xFFFF0000;
-  }
+  int displacement = calculateWordValue (statement, expressionStart, constants, labels);
   statement->operand (operandNo).displacement (displacement);
+}
+
+static void setWidthOfImmediateOperandOfAddInstruction (
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& operand = statement->operand (1);
+  int expressionStart = findExpressionStart (statement, 1);
+  if (canCalculateConstant (statement, expressionStart, constants)) {
+    int constVal = calculateWordValue (statement, expressionStart, constants, labels);
+    if (constVal <= -0x81 || constVal > 0x7F) {
+      operand.width (Operand::Width::WORD);
+      checkOperandWidthsAreTheSame (statement);
+    } else {
+      operand.width (Operand::Width::BYTE);
+    }
+  } else {
+    operand.width (statement->operand (0).width ());
+  }
 }
