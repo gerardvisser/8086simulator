@@ -18,11 +18,9 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include "Compilation.h"
-#include <algorithm>
 
-Compilation::Compilation (std::vector<uint8_t>& bytes) : m_size (bytes.size ()) {
-  m_bytes = new uint8_t[m_size];
-  std::copy (bytes.begin (), bytes.end (), m_bytes);
+Compilation::Compilation (int size) : m_size (size) {
+  m_bytes = size > 0 ? new uint8_t[m_size] : nullptr;
 }
 
 Compilation::Compilation (Compilation&& other) : m_size (other.m_size), m_bytes (other.m_bytes) {
@@ -44,10 +42,10 @@ Compilation::~Compilation (void) {
   }
 }
 
-const uint8_t* Compilation::bytes (void) const {
+uint8_t* Compilation::bytes (void) const {
   return m_bytes;
 }
 
-const int Compilation::size (void) const {
+int Compilation::size (void) const {
   return m_size;
 }

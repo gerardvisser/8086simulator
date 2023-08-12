@@ -40,6 +40,11 @@ static void checkInstructionAndSetSize (
     std::vector<std::shared_ptr<Statement>>& jumps,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels);
+static int determineSizeOfJumpInstructions (
+    std::vector<std::shared_ptr<Statement>>& statements,
+    std::vector<std::shared_ptr<Statement>>& jumps,
+    std::map<std::string, int>& labels,
+    int startOffset);
 static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo);
 static int findTokenIndexOfOperand (std::shared_ptr<Statement>& statement, int operandNo);
 static std::map<std::string, int> getLabels (std::vector<std::shared_ptr<Statement>>& statements);
@@ -61,6 +66,10 @@ static void setWidthOfImmediateOperandOfAddInstruction (
 
 Compilation compiler::compile (std::istream& stream, int startOffset) {
   std::vector<std::shared_ptr<Statement>> statements = parser::parse (stream);
+  if (statements.empty ()) {
+    return Compilation (0);
+  }
+
   std::map<std::string, int> labels = getLabels (statements);
   std::map<std::string, int64_t> constants;
   std::vector<std::shared_ptr<Statement>> jumps;
@@ -83,9 +92,16 @@ Compilation compiler::compile (std::istream& stream, int startOffset) {
     case Statement::Type::DATA:
       setDataStatementSize (statement);
     }
+    statement->location (offset);
     offset += statement->size ();
   }
-  /* TODO */
+  offset += determineSizeOfJumpInstructions (statements, jumps, labels, startOffset);
+
+  Compilation result (offset - startOffset);
+  if (result.size () > 0) {
+    /* TODO */
+  }
+  return result;
 }
 
 static int calculateExpression (
@@ -238,6 +254,34 @@ static void checkInstructionWithOneOperandAndSetSize (
   } else if (instrType == TOKEN_SUBTYPE_PUSH || instrType == TOKEN_SUBTYPE_POP) {
     statement->size (1);
   } else {
+    statement->size (2);
+  }
+}
+
+static void checkInstructionWithOneOptionalOperandAndSetSize (std::shared_ptr<Statement>& statement) {
+  std::shared_ptr<Token> token = statement->token (0);
+  if (token->subtype () == TOKEN_SUBTYPE_RET || token->subtype () == TOKEN_SUBTYPE_RETF) {
+    if (statement->tokenCount () == 2) {
+      token = statement->token (1);
+      int number = token->subtype ();
+      if (number <= -0x8001 || number > 0xFFFF) {
+        throw ParseException ("Error in line %d, column %d: the number value should be in the range [-0x8000, 0xFFFF].", token->line (), token->column ());
+      }
+      statement->operand (0).width (Operand::Width::WORD);
+      statement->size (3);
+    } else {
+      statement->size (1);
+    }
+  } else {
+    /* AAM and AAD */
+    if (statement->tokenCount () == 2) {
+      token = statement->token (1);
+      int number = token->subtype ();
+      if (number <= 0 || number > 0xFF) {
+        throw ParseException ("Error in line %d, column %d: the number value should be in the range [1, 0xFF].", token->line (), token->column ());
+      }
+      statement->operand (0).width (Operand::Width::BYTE);
+    }
     statement->size (2);
   }
 }
@@ -567,6 +611,15 @@ static void checkInstructionWithTwoOperandsAndSetSize (
   }
 }
 
+static void checkIntAndSetSize (std::shared_ptr<Statement>& statement) {
+  std::shared_ptr<Token>& token = statement->token (1);
+  int number = token->subtype ();
+  if (number <= -1 || number > 0xFF) {
+    throw ParseException ("Error in line %d, column %d: the interrupt number value should be in the range [0, 0xFF].", token->line (), token->column ());
+  }
+  statement->size (number == 3 ? 1 : 2);
+}
+
 static void checkJumpAndSetSize (
     std::shared_ptr<Statement>& statement,
     std::vector<std::shared_ptr<Statement>>& jumps,
@@ -629,6 +682,7 @@ static void checkInstructionAndSetSize (
     break;
 
   case Token::Type::INSTR01:
+    checkInstructionWithOneOptionalOperandAndSetSize (statement);
     break;
 
   case Token::Type::INSTR1:
@@ -652,6 +706,7 @@ static void checkInstructionAndSetSize (
     break;
 
   case Token::Type::INT:
+    checkIntAndSetSize (statement);
     break;
 
   case Token::Type::JMP:
@@ -662,6 +717,43 @@ static void checkInstructionAndSetSize (
     checkConditionalJmpAndSetSize (statement, labels);
     break;
   }
+}
+
+static int determineSizeOfJumpInstructions (
+    std::vector<std::shared_ptr<Statement>>& statements,
+    std::vector<std::shared_ptr<Statement>>& jumps,
+    std::map<std::string, int>& labels,
+    int startOffset) {
+
+  int addedBytes = 0;
+  bool resizingDone = false;
+  while (!resizingDone) {
+    resizingDone = true;
+    for (std::shared_ptr<Statement> jump : jumps) {
+      if (jump->size () == 2) {
+        std::shared_ptr<Token> labelToken = jump->token (1);
+        int start = jump->location () + 2;
+        int end = labels.find (labelToken->text ())->second;
+        int displacement = end - start;
+        if (displacement <= -0x81 || displacement > 0x7F) {
+          resizingDone = false;
+          jump->size (3);
+          ++addedBytes;
+        }
+      }
+    }
+    if (!resizingDone) {
+      int offset = startOffset;
+      for (std::shared_ptr<Statement> statement : statements) {
+        if (statement->type () == Statement::Type::LABEL) {
+          labels.find (statement->token (0)->text ())->second = offset;
+        }
+        statement->location (offset);
+        offset += statement->size ();
+      }
+    }
+  }
+  return addedBytes;
 }
 
 static int findExpressionStart (std::shared_ptr<Statement>& statement, int operandNo) {

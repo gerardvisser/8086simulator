@@ -21,7 +21,6 @@
 #define __COMPILATION_INCLUDED
 
 #include <cstdint>
-#include <vector>
 
 class Compilation {
 private:
@@ -29,7 +28,7 @@ private:
   int m_size;
 
 public:
-  Compilation (std::vector<uint8_t>& bytes);
+  explicit Compilation (int size);
 
   Compilation (const Compilation&) = delete;
   Compilation (Compilation&& other);
@@ -39,8 +38,8 @@ public:
 
   ~Compilation (void);
 
-  const uint8_t* bytes (void) const;
-  const int size (void) const;
+  uint8_t* bytes (void) const;
+  int size (void) const;
 };
 
 #endif
