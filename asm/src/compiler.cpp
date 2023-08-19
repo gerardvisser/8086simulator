@@ -22,6 +22,7 @@
 #include "tokenSubtypes.h"
 #include "exception/ParseException.h"
 #include "expressions/Expression.h"
+#include <algorithm>
 #include <map>
 
 #define ACCUMULATOR 0
@@ -39,6 +40,11 @@ static void checkInstructionAndSetSize (
     std::shared_ptr<Statement>& statement,
     std::vector<std::shared_ptr<Statement>>& jumps,
     const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels);
+static void compileStatements (
+    uint8_t* bytes,
+    std::vector<std::shared_ptr<Statement>>& statements,
+    std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels);
 static int determineSizeOfJumpInstructions (
     std::vector<std::shared_ptr<Statement>>& statements,
@@ -69,7 +75,6 @@ Compilation compiler::compile (std::istream& stream, int startOffset) {
   if (statements.empty ()) {
     return Compilation (0);
   }
-
   std::map<std::string, int> labels = getLabels (statements);
   std::map<std::string, int64_t> constants;
   std::vector<std::shared_ptr<Statement>> jumps;
@@ -99,7 +104,7 @@ Compilation compiler::compile (std::istream& stream, int startOffset) {
 
   Compilation result (offset - startOffset);
   if (result.size () > 0) {
-    /* TODO */
+    compileStatements (result.bytes (), statements, constants, labels);
   }
   return result;
 }
@@ -531,7 +536,7 @@ static void checkXchgAndSetSize (
   if (dstOperand.type () == Operand::Type::REGISTER) {
     if (srcOperand.type () == Operand::Type::REGISTER) {
       checkOperandWidthsAreTheSame (statement);
-      if (dstOperand.id () == ACCUMULATOR || srcOperand.id () == ACCUMULATOR) {
+      if ((dstOperand.id () == ACCUMULATOR || srcOperand.id () == ACCUMULATOR) && dstOperand.width () == Operand::Width::WORD) {
         statement->size (1);
       } else {
         statement->size (2);
@@ -864,5 +869,693 @@ static void setWidthOfImmediateOperandOfAddInstruction (
     }
   } else {
     operand.width (statement->operand (0).width ());
+  }
+}
+
+/*
+
+    compileStatements
+
+*/
+
+static void appendData (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
+  for (int i = 1; i < statement->tokenCount (); ++i) {
+    std::shared_ptr<Token> token = statement->token (i);
+    if (token->type () == Token::Type::STRING) {
+      const char* str = token->text ().c_str ();
+      std::copy (str, str + token->text ().length (), bytes);
+      bytes += token->text ().length ();
+    } else {
+      int value = token->subtype ();
+      if (value <= -0x81 || value > 0xFF) {
+        throw ParseException ("Error in line %d, column %d: the value should be in the range [-0x80, 0xFF].", token->line (), token->column ());
+      }
+      *bytes = value;
+      ++bytes;
+    }
+  }
+}
+
+static void appendWord (uint8_t* bytes, int word) {
+  bytes[0] = word;
+  bytes[1] = word >> 8;
+}
+
+static int determineMod (const Operand& operand) {
+  if ((operand.id () & 0x8) == 0) {
+    return 0;
+  }
+  if (operand.displacement () < -0x80 || operand.displacement () > 0x7F) {
+    return 2;
+  }
+  return 1;
+}
+
+static uint8_t* appendPointerOperand (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels,
+    int operandNo) {
+
+  Operand& operand = statement->operand (operandNo);
+  int memId = operand.id () & 0x7;
+  int mod = determineMod (operand);
+  bytes[0] |= mod << 6 | memId;
+  if (mod > 0) {
+    bytes[1] = operand.displacement ();
+    if (mod > 1) {
+      bytes[2] = operand.displacement () >> 8;
+      return bytes + 3;
+    }
+    return bytes + 2;
+  } else if (memId == 6) {
+    int expressionStart = findExpressionStart (statement, operandNo);
+    int offset = calculateWordValue (statement, expressionStart, constants, labels);
+    appendWord (bytes + 1, offset);
+    return bytes + 3;
+  }
+  return bytes + 1;
+}
+
+/* type: 0=inc, 1=dec */
+static void appendIncOrDec (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels,
+    int type) {
+
+  Operand& operand = statement->operand (0);
+  if (operand.type () == Operand::Type::REGISTER) {
+    if (operand.width () == Operand::Width::WORD) {
+      *bytes = 1 << 3;
+      *bytes |= type;
+      *bytes <<= 3;
+      *bytes |= operand.id ();
+    } else {
+      bytes[0] = 0xFE;
+      bytes[1] = 3 << 3;
+      bytes[1] |= type;
+      bytes[1] <<= 3;
+      bytes[1] |= operand.id ();
+    }
+  } else {
+    bytes[0] = 0xFE;
+    bytes[0] |= operand.width () == Operand::Width::WORD;
+    bytes[1] = type << 3;
+    appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+  }
+}
+
+static void appendNot (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  int type = statement->token (0)->subtype ();
+  Operand& operand = statement->operand (0);
+
+  bytes[0] = 0xF6 | operand.width () == Operand::Width::WORD;
+  if (operand.type () == Operand::Type::REGISTER) {
+    bytes[1] = 3 << 3 | type;
+    bytes[1] <<= 3;
+    bytes[1] |= operand.id ();
+  } else {
+    bytes[1] = type << 3;
+    appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+  }
+}
+
+static void appendPop (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& operand = statement->operand (0);
+  if (operand.type () == Operand::Type::SEGMENT_REGISTER) {
+    *bytes = operand.id () << 3 | 0x7;
+  } else if (operand.type () == Operand::Type::REGISTER) {
+    *bytes = 0xB << 3 | operand.id ();
+  } else {
+    bytes[0] = 0x8F;
+    bytes[1] = 0;
+    appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+  }
+}
+
+static void appendPush (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& operand = statement->operand (0);
+  if (operand.type () == Operand::Type::SEGMENT_REGISTER) {
+    *bytes = operand.id () << 3 | 0x6;
+  } else if (operand.type () == Operand::Type::REGISTER) {
+    *bytes = 0xA << 3 | operand.id ();
+  } else {
+    bytes[0] = 0xFF;
+    bytes[1] = 0x30;
+    appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+  }
+}
+
+static void appendInstructionWithOneOperand (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  std::shared_ptr<Token> token = statement->token (0);
+  switch (token->subtype ()) {
+  case TOKEN_SUBTYPE_INC:
+    appendIncOrDec (bytes, statement, constants, labels, 0);
+    break;
+
+  case TOKEN_SUBTYPE_DEC:
+    appendIncOrDec (bytes, statement, constants, labels, 1);
+    break;
+
+  case TOKEN_SUBTYPE_PUSH:
+    appendPush (bytes, statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_POP:
+    appendPop (bytes, statement, constants, labels);
+    break;
+
+  default:
+    /* not, neg, mul, imul, div, idiv */
+    appendNot (bytes, statement, constants, labels);
+    break;
+  }
+}
+
+static void appendInstructionWithOneOptionalOperand (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
+  std::shared_ptr<Token> token = statement->token (0);
+  *bytes = token->subtype ();
+  if (token->subtype () == TOKEN_SUBTYPE_RET || token->subtype () == TOKEN_SUBTYPE_RETF) {
+    if (statement->tokenCount () == 2) {
+      --*bytes;
+      ++bytes;
+      appendWord (bytes, statement->token (1)->subtype ());
+    }
+  } else {
+    ++bytes;
+    if (statement->tokenCount () == 2) {
+      *bytes = statement->token (1)->subtype ();
+    } else {
+      *bytes = 10;
+    }
+  }
+}
+
+static void appendInstructionWithoutOperands (uint8_t* bytes, int tokenSubtype) {
+  if (tokenSubtype == TOKEN_SUBTYPE_ES || tokenSubtype == TOKEN_SUBTYPE_CS || tokenSubtype == TOKEN_SUBTYPE_SS || tokenSubtype == TOKEN_SUBTYPE_DS) {
+    *bytes = 0x26 | (tokenSubtype << 3);
+  } else {
+    *bytes = tokenSubtype;
+  }
+}
+
+static void appendAdd (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  int type = statement->token (0)->subtype ();
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] = type | 2 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = 3 << 3;
+      bytes[1] |= dstOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= srcOperand.id ();
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      bytes[0] = type | 2 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = dstOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 1);
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      if (dstOperand.id () == ACCUMULATOR) {
+        bytes[0] = type | 4;
+        if (dstOperand.width () == Operand::Width::WORD) {
+          bytes[0] |= 1;
+          appendWord (bytes + 1, immValue);
+        } else {
+          /* Throw error if immValue not a byte?  */
+          bytes[1] = immValue;
+        }
+      } else {
+        bytes[0] = 0x80 | dstOperand.width () == Operand::Width::WORD;
+        bytes[1] = 0xC0 | type;
+        bytes[1] |= dstOperand.id ();
+        if (srcOperand.width () == Operand::Width::WORD) {
+          appendWord (bytes + 2, immValue);
+        } else {
+          bytes[0] |= 2;
+          bytes[2] = immValue;
+        }
+      }
+    }
+
+  } else {
+
+    /* dstOperand.type () == Operand::Type::POINTER */
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] = type | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = srcOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      bytes[0] = 0x80 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = type;
+      if (srcOperand.width () == Operand::Width::WORD) {
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        appendWord (bytes, immValue);
+      } else {
+        bytes[0] |= 2;
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        *bytes = immValue;
+      }
+    }
+
+  }
+}
+
+static void appendMov (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] = 0x8A | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = 3 << 3;
+      bytes[1] |= dstOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= srcOperand.id ();
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      if (dstOperand.id () == ACCUMULATOR && srcOperand.id () == 6) {
+        bytes[0] = 0xA0 | dstOperand.width () == Operand::Width::WORD;
+        int expressionStart = findExpressionStart (statement, 1);
+        int offset = calculateWordValue (statement, expressionStart, constants, labels);
+        appendWord (bytes + 1, offset);
+      } else {
+        bytes[0] = 0x8A | dstOperand.width () == Operand::Width::WORD;
+        bytes[1] = dstOperand.id () << 3;
+        appendPointerOperand (bytes + 1, statement, constants, labels, 1);
+      }
+    } else if (srcOperand.type () == Operand::Type::SEGMENT_REGISTER) {
+      bytes[0] = 0x8C;
+      bytes[1] = 3 << 3;
+      bytes[1] |= srcOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= dstOperand.id ();
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      bytes[0] = 0xB0 | dstOperand.id ();
+      if (dstOperand.width () == Operand::Width::WORD) {
+        bytes[0] |= 8;
+        appendWord (bytes + 1, immValue);
+      } else {
+        /* Throw error if immValue not a byte?  */
+        bytes[1] = immValue;
+      }
+    }
+
+  } else if (dstOperand.type () == Operand::Type::POINTER) {
+
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      if (srcOperand.id () == ACCUMULATOR && dstOperand.id () == 6) {
+        bytes[0] = 0xA2 | dstOperand.width () == Operand::Width::WORD;
+        int expressionStart = findExpressionStart (statement, 0);
+        int offset = calculateWordValue (statement, expressionStart, constants, labels);
+        appendWord (bytes + 1, offset);
+      } else {
+        bytes[0] = 0x88 | dstOperand.width () == Operand::Width::WORD;
+        bytes[1] = srcOperand.id () << 3;
+        appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+      }
+    } else if (srcOperand.type () == Operand::Type::SEGMENT_REGISTER) {
+      bytes[0] = 0x8C;
+      bytes[1] = srcOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      bytes[0] = 0xC6;
+      bytes[1] = 0;
+      if (dstOperand.width () == Operand::Width::WORD) {
+        bytes[0] |= 1;
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        appendWord (bytes, immValue);
+      } else {
+        /* Throw error if immValue not a byte?  */
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        *bytes = immValue;
+      }
+    }
+
+  } else {
+    /* dstOperand.type () == Operand::Type::SEGMENT_REGISTER */
+
+    bytes[0] = 0x8E;
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[1] = 3 << 3;
+      bytes[1] |= dstOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= srcOperand.id ();
+    } else {
+      bytes[1] = dstOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 1);
+    }
+
+  }
+}
+
+static void appendShift (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  int type = statement->token (0)->subtype () & 7;
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+
+    bytes[1] = 3 << 3 | type;
+    bytes[1] <<= 3;
+    bytes[1] |= dstOperand.id ();
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] = 0xD2 | dstOperand.width () == Operand::Width::WORD;
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      if (immValue == 1) {
+        bytes[0] = 0xD0 | dstOperand.width () == Operand::Width::WORD;
+      } else {
+        bytes[0] = 0xC0 | dstOperand.width () == Operand::Width::WORD;
+        bytes[2] = immValue;
+      }
+    }
+
+  } else {
+    /* dstOperand.type () == Operand::Type::POINTER */
+
+    bytes[0] = dstOperand.width () == Operand::Width::WORD;
+    bytes[1] = type << 3;
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] |= 0xD2;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      if (immValue == 1) {
+        bytes[0] |= 0xD0;
+        appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+      } else {
+        bytes[0] |= 0xC0;
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        *bytes = immValue;
+      }
+    }
+
+  }
+}
+
+static void appendTest (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] = 0x84 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = 3 << 3;
+      bytes[1] |= srcOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= dstOperand.id ();
+    } else if (srcOperand.type () == Operand::Type::POINTER) {
+      bytes[0] = 0x84 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = dstOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 1);
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      if (dstOperand.id () == ACCUMULATOR) {
+        bytes[0] = 0xA8;
+        if (dstOperand.width () == Operand::Width::WORD) {
+          bytes[0] |= 1;
+          appendWord (bytes + 1, immValue);
+        } else {
+          /* Throw error if immValue not a byte?  */
+          bytes[1] = immValue;
+        }
+      } else {
+        bytes[0] = 0xF6;
+        bytes[1] = 0xC0 | dstOperand.id ();
+        if (dstOperand.width () == Operand::Width::WORD) {
+          bytes[0] |= 1;
+          appendWord (bytes + 2, immValue);
+        } else {
+          /* Throw error if immValue not a byte?  */
+          bytes[2] = immValue;
+        }
+      }
+    }
+
+  } else if (dstOperand.type () == Operand::Type::POINTER) {
+
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      bytes[0] = 0x84 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = srcOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+    } else {
+      int expressionStart = findExpressionStart (statement, 1);
+      int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+      bytes[0] = 0xF6;
+      bytes[1] = 0;
+      if (dstOperand.width () == Operand::Width::WORD) {
+        bytes[0] |= 1;
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        appendWord (bytes, immValue);
+      } else {
+        /* Throw error if immValue not a byte?  */
+        bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+        *bytes = immValue;
+      }
+    }
+
+  } else {
+    /* dstOperand.type () == Operand::Type::IMMEDIATE */
+
+    int expressionStart = findExpressionStart (statement, 0);
+    int immValue = calculateWordValue (statement, expressionStart, constants, labels);
+    if (srcOperand.id () == ACCUMULATOR) {
+      bytes[0] = 0xA8;
+      if (srcOperand.width () == Operand::Width::WORD) {
+        bytes[0] |= 1;
+        appendWord (bytes + 1, immValue);
+      } else {
+        /* Throw error if immValue not a byte?  */
+        bytes[1] = immValue;
+      }
+    } else {
+      bytes[0] = 0xF6;
+      bytes[1] = 0xC0 | srcOperand.id ();
+      if (srcOperand.width () == Operand::Width::WORD) {
+        bytes[0] |= 1;
+        appendWord (bytes + 2, immValue);
+      } else {
+        /* Throw error if immValue not a byte?  */
+        bytes[2] = immValue;
+      }
+    }
+
+  }
+}
+
+static void appendXchg (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+
+    if (srcOperand.type () == Operand::Type::REGISTER) {
+      if (dstOperand.id () == ACCUMULATOR && dstOperand.width () == Operand::Width::WORD) {
+        *bytes = 0x90 | srcOperand.id ();
+      } else if (srcOperand.id () == ACCUMULATOR && srcOperand.width () == Operand::Width::WORD) {
+        *bytes = 0x90 | dstOperand.id ();
+      } else {
+        bytes[0] = 0x86 | dstOperand.width () == Operand::Width::WORD;
+        bytes[1] = 3 << 3;
+        bytes[1] |= dstOperand.id ();
+        bytes[1] <<= 3;
+        bytes[1] |= srcOperand.id ();
+      }
+    } else {
+      bytes[0] = 0x86 | dstOperand.width () == Operand::Width::WORD;
+      bytes[1] = dstOperand.id () << 3;
+      appendPointerOperand (bytes + 1, statement, constants, labels, 1);
+    }
+
+  } else {
+    /* dstOperand.type () == Operand::Type::POINTER */
+
+    bytes[0] = 0x86 | dstOperand.width () == Operand::Width::WORD;
+    bytes[1] = srcOperand.id () << 3;
+    appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+
+  }
+}
+
+static void appendInstructionWithTwoOperands (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  std::shared_ptr<Token> token = statement->token (0);
+  switch (token->subtype ()) {
+  case TOKEN_SUBTYPE_ADD:
+  case TOKEN_SUBTYPE_OR:
+  case TOKEN_SUBTYPE_ADC:
+  case TOKEN_SUBTYPE_SBB:
+  case TOKEN_SUBTYPE_AND:
+  case TOKEN_SUBTYPE_SUB:
+  case TOKEN_SUBTYPE_XOR:
+  case TOKEN_SUBTYPE_CMP:
+    appendAdd (bytes, statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_MOV:
+    appendMov (bytes, statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_TEST:
+    appendTest (bytes, statement, constants, labels);
+    break;
+
+  case TOKEN_SUBTYPE_XCHG:
+    appendXchg (bytes, statement, constants, labels);
+    break;
+
+  default:
+    /* rol, ror, rcl, rcr, shl, shr, sal, sar */
+    appendShift (bytes, statement, constants, labels);
+    break;
+  }
+}
+
+static void appendInstruction (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  std::shared_ptr<Token> token = statement->token (0);
+  switch (token->type ()) {
+  case Token::Type::SEGREG:
+  case Token::Type::INSTR0:
+    appendInstructionWithoutOperands (bytes, token->subtype ());
+    break;
+
+  case Token::Type::INSTR01:
+    appendInstructionWithOneOptionalOperand (bytes, statement);
+    break;
+
+  case Token::Type::INSTR1:
+    appendInstructionWithOneOperand (bytes, statement, constants, labels);
+    break;
+
+  case Token::Type::INSTR2:
+    appendInstructionWithTwoOperands (bytes, statement, constants, labels);
+    break;
+
+  case Token::Type::LOAD:
+    break;
+
+  case Token::Type::IN:
+    break;
+
+  case Token::Type::OUT:
+    break;
+
+  case Token::Type::INT:
+    break;
+
+  case Token::Type::JMP:
+    break;
+
+  case Token::Type::CONDITIONAL_JMP:
+    break;
+  }
+}
+
+static void calculateConstant (
+    std::shared_ptr<Statement>& statement,
+    std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  const std::string& constant = statement->token (0)->text ();
+  auto constantsIter = constants.find (constant);
+  if (constantsIter->second == UNDEFINED_CONSTANT) {
+    constantsIter->second = calculateExpression (statement, 1, constants, labels);
+  }
+}
+
+static void compileStatements (
+    uint8_t* bytes,
+    std::vector<std::shared_ptr<Statement>>& statements,
+    std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  for (std::shared_ptr<Statement> statement : statements) {
+    switch (statement->type ()) {
+    case Statement::Type::CONSTANT:
+      calculateConstant (statement, constants, labels);
+      break;
+
+    case Statement::Type::INSTRUCTION:
+      appendInstruction (bytes, statement, constants, labels);
+      break;
+
+    case Statement::Type::DATA:
+      appendData (bytes, statement);
+      break;
+
+    default: ;
+    }
+    bytes += statement->size ();
   }
 }
