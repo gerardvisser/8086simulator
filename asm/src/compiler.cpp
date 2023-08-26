@@ -183,6 +183,7 @@ static void checkForUnknownIdentifiers (
     std::shared_ptr<Statement>& statement,
     const std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels) {
+
   for (int i = 1; i < statement->tokenCount (); ++i) {
     std::shared_ptr<Token>& token = statement->token (i);
     if (token->type () == Token::Type::IDENTIFIER) {
@@ -200,6 +201,7 @@ static void checkForUnknownIdentifiers (
 static void checkConditionalJmpAndSetSize (
     std::shared_ptr<Statement>& statement,
     const std::map<std::string, int>& labels) {
+
   statement->size (2);
   std::shared_ptr<Token>& token = statement->token (1);
   if (labels.find (token->text ()) == labels.end ()) {
@@ -878,6 +880,22 @@ static void setWidthOfImmediateOperandOfAddInstruction (
 
 */
 
+static void appendConditionalJmp (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int>& labels) {
+
+  std::shared_ptr<Token> labelToken = statement->token (1);
+  int start = statement->location () + 2;
+  int end = labels.find (labelToken->text ())->second;
+  int displacement = end - start;
+  if (displacement <= -0x81 || displacement > 0x7F) {
+    throw ParseException ("Error in line %d, column %d: label too far away.", labelToken->line (), labelToken->column ());
+  }
+  bytes[0] = statement->token (0)->subtype ();
+  bytes[1] = displacement;
+}
+
 static void appendData (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
   for (int i = 1; i < statement->tokenCount (); ++i) {
     std::shared_ptr<Token> token = statement->token (i);
@@ -893,6 +911,17 @@ static void appendData (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
       *bytes = value;
       ++bytes;
     }
+  }
+}
+
+static void appendIn (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+  if (srcOperand.type () == Operand::Type::REGISTER) {
+    bytes[0] = 0xEC | dstOperand.width () == Operand::Width::WORD;
+  } else {
+    bytes[0] = 0xE4 | dstOperand.width () == Operand::Width::WORD;
+    bytes[1] = statement->token (3)->subtype ();
   }
 }
 
@@ -1477,6 +1506,83 @@ static void appendInstructionWithTwoOperands (
   }
 }
 
+static void appendInt (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
+  std::shared_ptr<Token>& token = statement->token (1);
+  int number = token->subtype ();
+  if (number == 3) {
+    *bytes = 0xCC;
+  } else {
+    bytes[0] = 0xCD;
+    bytes[1] = number;
+  }
+}
+
+static void appendJmpOrCall (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  bool isJump = statement->token (0)->subtype () == TOKEN_SUBTYPE_JMP;
+  if (statement->operandCount () == 1) {
+    Operand& operand = statement->operand (0);
+    bytes[0] = 0xFF;
+    bytes[1] = isJump ? 0x20 : 0x10;
+    if (statement->token (1)->type () == Token::Type::FAR) {
+      bytes[1] |= 8;
+    }
+    if (operand.type () == Operand::Type::REGISTER) {
+      bytes[1] |= 0xC0 | operand.id ();
+    } else {
+      appendPointerOperand (bytes + 1, statement, constants, labels, 0);
+    }
+  } else if (statement->token (1)->type () == Token::Type::IDENTIFIER) {
+    std::shared_ptr<Token> labelToken = statement->token (1);
+    int start = statement->location () + statement->size ();
+    int end = labels.find (labelToken->text ())->second;
+    int displacement = end - start;
+    if (isJump) {
+      if (statement->size () == 2) {
+        bytes[0] = 0xEB;
+        bytes[1] = displacement;
+      } else {
+        bytes[0] = 0xE9;
+        appendWord (bytes + 1, displacement);
+      }
+    } else {
+      bytes[0] = 0xE8;
+      appendWord (bytes + 1, displacement);
+    }
+  } else {
+    bytes[0] = isJump ? 0xEA : 0x9A;
+    appendWord (bytes + 1, statement->token (2)->subtype ());
+    appendWord (bytes + 3, statement->token (1)->subtype ());
+  }
+}
+
+static void appendLoad (
+    uint8_t* bytes,
+    std::shared_ptr<Statement>& statement,
+    const std::map<std::string, int64_t>& constants,
+    const std::map<std::string, int>& labels) {
+
+  Operand& dstOperand = statement->operand (0);
+  bytes[0] = statement->token (0)->subtype ();
+  bytes[1] = dstOperand.id () << 3;
+  appendPointerOperand (bytes + 1, statement, constants, labels, 1);
+}
+
+static void appendOut (uint8_t* bytes, std::shared_ptr<Statement>& statement) {
+  Operand& dstOperand = statement->operand (0);
+  Operand& srcOperand = statement->operand (1);
+  if (dstOperand.type () == Operand::Type::REGISTER) {
+    bytes[0] = 0xEE | srcOperand.width () == Operand::Width::WORD;
+  } else {
+    bytes[0] = 0xE6 | srcOperand.width () == Operand::Width::WORD;
+    bytes[1] = statement->token (1)->subtype ();
+  }
+}
+
 static void appendInstruction (
     uint8_t* bytes,
     std::shared_ptr<Statement>& statement,
@@ -1503,21 +1609,27 @@ static void appendInstruction (
     break;
 
   case Token::Type::LOAD:
+    appendLoad (bytes, statement, constants, labels);
     break;
 
   case Token::Type::IN:
+    appendIn (bytes, statement);
     break;
 
   case Token::Type::OUT:
+    appendOut (bytes, statement);
     break;
 
   case Token::Type::INT:
+    appendInt (bytes, statement);
     break;
 
   case Token::Type::JMP:
+    appendJmpOrCall (bytes, statement, constants, labels);
     break;
 
   case Token::Type::CONDITIONAL_JMP:
+    appendConditionalJmp (bytes, statement, labels);
     break;
   }
 }
