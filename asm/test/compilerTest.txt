@@ -1,0 +1,322 @@
+start:
+  jmp een_stukje_verder  ;2
+
+  db "tekst een", 0xA, 0, "tekst twee", 0xA, 0  ;23
+
+een_stukje_verder:
+  add cx, bx                ;2
+  or cl, bl                 ;2
+  adc [0x1234], ax          ;4
+  sbb [di + bp], ah         ;2
+  and [bp + si - 2], bp     ;3
+  es:                       ;1
+  xor [bx + si - 0x81], sp  ;4
+  cs:                       ;1
+label_3:
+  sub [bx - 0x80], bh       ;3
+  ss:                       ;1
+  cmp bx, [si]              ;2
+  ds:                       ;1
+  sbb ch, [bp]              ;3
+  or di, [di + 0x7F]        ;3
+  sub bl, [si + 0x80]       ;4
+  and si, [bx]              ;2
+  xor al, [si + bx]         ;2
+
+  or al, 0x47    ;2
+  xor dh, 0x47   ;3
+  adc al, -0x80  ;2
+  add ah, -0x80  ;3
+  cmp al, 0x7F   ;2
+  sbb bh, 0x7F   ;3
+  sub al, 0xDC   ;2
+  xor cl, 0xDC   ;3
+
+  adc ax, -0x14  ;3
+  and si, -0x14  ;3!
+  sub ax, -0x80  ;3
+  add bp, -0x80  ;3
+  or  ax, 0x7F   ;3
+  sbb di, 0x7F   ;3
+
+  xor ax, 0x80   ;3
+  or  cx, 0x80   ;4
+  and ax, 0x234  ;3
+  sbb dx, 0x234  ;4
+  sub ax, -0x81  ;3
+  add sp, -0x81  ;4
+
+  xor byte ptr [bx + di], 0x47                 ;3
+  sbb byte ptr [bp + si], -0x80                ;3
+  and byte ptr [di], 0x7F                      ;3
+  or byte ptr [bx + di + 2], 0xDC              ;4
+  sub word ptr [bp + di + 0x100], -0x14        ;5
+  add word ptr [start + 2], -0x80              ;5
+  cmp word ptr [een_stukje_verder - 23], 0x7F  ;5
+  xor word ptr [0x1080], 0x80                  ;6
+  adc word ptr [si + 0x180], 0x234             ;6
+  cmp word ptr [di - 0x200], -0x81             ;6
+
+  jmp label_3   ;2
+  jmp label_3   ;3
+  call label_3  ;3
+  jmp label_4   ;3
+  jmp label_4   ;2
+
+  push es  ;1
+  push cs  ;1
+  push ss  ;1
+  push ds  ;1
+  pop ds   ;1
+  pop ss   ;1
+  pop es   ;1
+  daa      ;1
+  das      ;1
+  aaa      ;1
+  aas      ;1
+
+  mov bp, dx  ;2
+  mov cl, dh  ;2
+
+  mov [bx], sp                 ;2
+  mov [een_stukje_verder], dx  ;4
+  mov [een_stukje_verder], ax  ;3
+  mov [een_stukje_verder], al  ;3
+  mov [bx + di], al            ;2
+
+  mov [bp + si + 0x7F], cx  ;3
+  mov [bx + si - 0x80], ah  ;3
+  mov [bp + 2], di          ;3
+
+  mov [di + 0x80], bh   ;4
+  mov [si - 0x81], bx   ;4
+  mov [bx + 0x1C8], ch  ;4
+
+  mov sp, [bx]                 ;2
+  mov dx, [een_stukje_verder]  ;4
+  mov ax, [een_stukje_verder]  ;3
+  mov al, [een_stukje_verder]  ;3
+  mov al, [bx + di]            ;2
+
+  mov cx, [bp + si + 0x7F]  ;3
+  mov ah, [bx + si - 0x80]  ;3
+  mov di, [bp - 2]          ;3
+
+  mov bh, [di + 0x80]   ;4
+  mov bx, [si - 0x81]   ;4
+  mov ch, [bx + 0x1C8]  ;4
+
+  mov dx, cs         ;2
+  mov ds, dx         ;2
+  mov [bp + di], ss  ;2
+  mov ds, [di + 6]   ;3
+
+  mov di, 0x58    ;3
+  mov ax, 0x1234  ;3
+  mov dh, 0x21    ;2
+
+  mov byte ptr [bp + si], 0xF4   ;3
+  mov word ptr [si], 0xF4        ;4
+  mov word ptr [bx], -12         ;4
+  mov byte ptr [0x2050], 0xC8    ;5
+  mov word ptr [0x2050], 0x7FFE  ;6
+
+  cbw    ;1
+  cwd    ;1
+  wait   ;1
+label_4:
+
+  mov byte ptr [bp + si + 0x7F], 0x87  ;4
+  mov word ptr [bx + si + 0x7F], 0x2E  ;5
+  mov word ptr [bp + 0x7F], 0x3E8      ;5
+  mov byte ptr [di + 0x1234], 0xA3     ;5
+  mov word ptr [si + 0x1234], 0x64     ;6
+  mov word ptr [bx + 0x1234], 0x2710   ;6
+
+  test si, cx         ;2
+  test dl, ah         ;2
+  test [bx + di], bx  ;2
+  test bx, [bx + di]  ;2
+  test [0x3800], dl   ;4
+  test dl, [0x3800]   ;4
+
+  test di, 0x58    ;4
+  test 0x58, di    ;4
+  test bp, 0x1234  ;4
+  test 0x1234, bp  ;4
+  test ah, 0x21    ;3
+  test 0x21, ah    ;3
+  test ax, 0x58    ;3
+  test 0x58, ax    ;3
+  test ax, 0x1234  ;3
+  test 0x1234, ax  ;3
+  test al, 0x21    ;2
+  test 0x21, al    ;2
+
+  test byte ptr [bp + si], 0xF4   ;3
+  test word ptr [si], 0xF4        ;4
+  test word ptr [bx], -12         ;4
+  test byte ptr [0x2050], 0xC8    ;5
+  test word ptr [0x2050], 0x7FFE  ;6
+
+  test byte ptr [bp + si - 0x80], 0x87  ;4
+  test word ptr [bx + si - 0x80], 0x2E  ;5
+  test word ptr [bp - 0x80], 0x3E8      ;5
+  test byte ptr [di + 0x1234], 0xA3     ;5
+  test word ptr [si + 0x1234], 0x64     ;6
+  test word ptr [bx + 0x1234], 0x2710   ;6
+
+  xchg [bx + di], bx  ;2
+  xchg bx, [bx + di]  ;2
+  xchg [0x3800], dl   ;4
+  xchg dl, [0x3800]   ;4
+  xchg bx, bp         ;2
+  xchg al, ah         ;2
+  xchg ax, cx         ;1
+  xchg cx, ax         ;1
+  nop                 ;1
+
+  inc si                         ;1
+  inc ch                         ;2
+  inc byte ptr [bp + si]         ;2
+  inc word ptr [si]              ;2
+  inc byte ptr [0x2050]          ;4
+  inc word ptr [bx + si + 0x7F]  ;3
+  inc byte ptr [di + 0x1234]     ;4
+
+  dec si                         ;1
+  dec ch                         ;2
+  dec byte ptr [bp + si]         ;2
+  dec word ptr [si]              ;2
+  dec byte ptr [0x2050]          ;4
+  dec word ptr [bx + si + 0x7F]  ;3
+  dec byte ptr [di + 0x1234]     ;4
+
+  push bp                ;1
+  push [si]              ;2
+  push [bx + si + 0x7F]  ;3
+  push [di + 0x1234]     ;4
+
+  pop [di + 0x1234]     ;4
+  pop [bx + si + 0x7F]  ;3
+  pop [si]              ;2
+  pop bp                ;1
+
+  rol dx, 3                      ;3
+  rol word ptr [si + 0x23], 4    ;4
+  ror byte ptr [si + 0x423], 2   ;5
+  rcl dx, 1                      ;2
+  rcr ah, 1                      ;2
+  shl word ptr [bp + si], 1      ;2
+  shl byte ptr [bx + si + 8], 1  ;3
+  shr di, cl                     ;2
+  shr dl, cl                     ;2
+  sal word ptr [0x3A98], cl      ;4!
+  sar byte ptr [bp + 0x9C4], cl  ;4
+
+  not cx                         ;2
+  neg ch                         ;2
+  mul byte ptr [bp + si]         ;2
+  imul word ptr [0x2050]         ;4
+  div word ptr [bx + si + 0x7F]  ;3
+  idiv byte ptr [di + 0x1234]    ;4
+
+  pushf  ;1
+  popf   ;1
+  sahf   ;1
+  lahf   ;1
+  movsb  ;1
+  movsw  ;1
+  cmpsb  ;1
+  cmpsw  ;1
+  stosb  ;1
+  stosw  ;1
+  lodsb  ;1
+  lodsw  ;1
+  scasb  ;1
+  scasw  ;1
+  into   ;1
+  iret   ;1
+  xlat   ;1
+  lock   ;1
+  repnz  ;1
+  repz   ;1
+  hlt    ;1
+  cmc    ;1
+  clc    ;1
+  stc    ;1
+  cli    ;1
+  sti    ;1
+  cld    ;1
+  std    ;1
+
+  ret          ;1
+  ret 0x1234   ;3
+  retf         ;1
+  retf 0x12    ;3
+  aam          ;2
+  aam 8        ;2!
+  aad          ;2
+  aad 8        ;2!
+  int 0x10     ;2
+  int 3        ;1
+
+label_5:
+  in al, dx     ;1
+  in ax, dx     ;1
+  out dx, al    ;1
+  out dx, ax    ;1
+  in al, 0x60   ;2
+  in ax, 0x34   ;2
+  out 0x20, al  ;2
+  out 0x12, ax  ;2
+
+  lea cx, [si]                ;2
+  les bx, [di - 8]            ;3
+  lds dx, [bp + di + 0x1234]  ;4
+
+  jo label_5      ;2
+  jno label_6     ;2
+  jb label_5      ;2
+  jc label_6      ;2
+  jnae label_5    ;2
+  jnb label_6     ;2
+  jnc label_5     ;2
+  jae label_6     ;2
+  jz label_5      ;2
+  je label_6      ;2
+  jnz label_5     ;2
+  jne label_6     ;2
+  jbe label_5     ;2
+  jna label_6     ;2
+  ja label_5      ;2
+  jnbe label_6    ;2
+  js label_5      ;2
+  jns label_6     ;2
+  jpe label_5     ;2
+  jp label_6      ;2
+  jpo label_5     ;2
+  jnp label_6     ;2
+  jl label_5      ;2
+  jnge label_6    ;2
+  jge label_5     ;2
+  jnl label_6     ;2
+  jle label_5     ;2
+  jng label_6     ;2
+  jg label_5      ;2
+  jnle label_6    ;2
+  loopnz label_5  ;2
+  loopne label_6  ;2
+  loopz label_5   ;2
+  loope label_6   ;2
+  loop label_5    ;2
+  jcxz label_6    ;2
+
+  call 0x1234:0x5678  ;5
+  jmp 0x7856:0x3412   ;5
+
+label_6:
+  call bx                    ;2
+  call far [di + 5]          ;3
+  jmp [bx]                   ;2
+  jmp far [bp + si + 0x124]  ;4

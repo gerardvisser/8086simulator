@@ -73,7 +73,11 @@ static void setWidthOfImmediateOperandOfAddInstruction (
 Compilation compiler::compile (std::istream& stream, int startOffset) {
   std::vector<std::shared_ptr<Statement>> statements = parser::parse (stream);
   if (statements.empty ()) {
+#ifdef TEST_MODE
+    return Compilation (0, statements);
+#else
     return Compilation (0);
+#endif
   }
   std::map<std::string, int> labels = getLabels (statements);
   std::map<std::string, int64_t> constants;
@@ -102,7 +106,11 @@ Compilation compiler::compile (std::istream& stream, int startOffset) {
   }
   offset += determineSizeOfJumpInstructions (statements, jumps, labels, startOffset);
 
+#ifdef TEST_MODE
+  Compilation result (offset - startOffset, statements);
+#else
   Compilation result (offset - startOffset);
+#endif
   if (result.size () > 0) {
     compileStatements (result.bytes (), statements, constants, labels);
   }
@@ -244,11 +252,15 @@ static void checkInstructionWithOneOperandAndSetSize (
     if (operand.width () == Operand::Width::BYTE) {
       throw ParseException ("Error in line %d, column %d: this instruction can only have 16 bits wide operands.", token->line (), token->column ());
     }
+    if (instrType == TOKEN_SUBTYPE_POP && operand.type () == Operand::Type::SEGMENT_REGISTER && operand.id () == TOKEN_SUBTYPE_CS) {
+      token = statement->token (1);
+      throw ParseException ("Error in line %d, column %d: cannot pop cs.", token->line (), token->column ());
+    }
     operand.width (Operand::Width::WORD);
   }
   if (operand.type () == Operand::Type::POINTER) {
-    token = statement->token (1);
     if (operand.width () == Operand::Width::UNDEFINED) {
+      token = statement->token (1);
       throw ParseException ("Error in line %d, column %d: operand width unknown.", token->line (), token->column ());
     }
     checkForUnknownIdentifiers (statement, constants, labels);

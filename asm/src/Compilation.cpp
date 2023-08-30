@@ -17,7 +17,30 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
+#include <utility>
 #include "Compilation.h"
+
+#ifdef TEST_MODE
+
+Compilation::Compilation (int size, std::vector<std::shared_ptr<Statement>>& statements) : m_size (size), statements (statements) {
+  m_bytes = size > 0 ? new uint8_t[m_size] : nullptr;
+}
+
+Compilation::Compilation (Compilation&& other) : m_size (other.m_size), m_bytes (other.m_bytes), statements (std::move (other.statements)) {
+  other.m_bytes = nullptr;
+  other.m_size = 0;
+}
+
+Compilation& Compilation::operator= (Compilation&& other) {
+  statements = std::move (other.statements);
+  m_size = other.m_size;
+  m_bytes = other.m_bytes;
+  other.m_bytes = nullptr;
+  other.m_size = 0;
+  return *this;
+}
+
+#else
 
 Compilation::Compilation (int size) : m_size (size) {
   m_bytes = size > 0 ? new uint8_t[m_size] : nullptr;
@@ -35,6 +58,8 @@ Compilation& Compilation::operator= (Compilation&& other) {
   other.m_size = 0;
   return *this;
 }
+
+#endif
 
 Compilation::~Compilation (void) {
   if (m_bytes != nullptr) {

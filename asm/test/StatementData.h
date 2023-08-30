@@ -17,44 +17,29 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __COMPILATION_INCLUDED
-#define __COMPILATION_INCLUDED
+#ifndef __STATEMENT_DATA_INCLUDED
+#define __STATEMENT_DATA_INCLUDED
 
-#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
 
-#ifdef TEST_MODE
-# include <memory>
-# include <vector>
-# include "Statement.h"
-#endif
-
-class Compilation {
+class StatementData {
 private:
-  uint8_t* m_bytes;
+  std::string m_text;
   int m_size;
+  int m_line;
+
+  StatementData (std::string& text, int size, int line);
+
+  static std::shared_ptr<StatementData> convertLine (std::string& text, int lineNo);
 
 public:
-#ifdef TEST_MODE
-  std::vector<std::shared_ptr<Statement>> statements;
+  static std::vector<std::shared_ptr<StatementData>> readFromFile (std::string& filename);
 
-  Compilation (int size, std::vector<std::shared_ptr<Statement>>& statements);
-
-#else
-
-  explicit Compilation (int size);
-
-#endif
-
-  Compilation (const Compilation&) = delete;
-  Compilation (Compilation&& other);
-
-  Compilation& operator= (const Compilation&) = delete;
-  Compilation& operator= (Compilation&& other);
-
-  ~Compilation (void);
-
-  uint8_t* bytes (void) const;
+  int line (void) const;
   int size (void) const;
+  const std::string& text (void) const;
 };
 
 #endif
