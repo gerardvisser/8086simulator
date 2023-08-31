@@ -6,6 +6,7 @@ CPPFLAGS=-DTEST_MODE
 VPATH=..:../../src:../../src/exception:../../src/expressions
 
 objs:=$(objs)\
+  compilerTest.o\
   statementCreatorTest.o\
   StatementData.o\
   test.o\

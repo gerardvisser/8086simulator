@@ -1,0 +1,14 @@
+1. There can only be a + between a register and a numerical expression, within
+   a pointer operand.  This means that something like:
+
+     inc [bp + si - 2]
+
+   will be marked as an error.  Workaround:
+
+     inc [bp + si + -2]
+
+   is accepted.
+   The error is triggered in function createPointerOperand in file
+   statementCreator.cpp.
+
+2. The line number reported in an error message is one too few (0 based).

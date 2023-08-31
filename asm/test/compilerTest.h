@@ -17,29 +17,11 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __STATEMENT_DATA_INCLUDED
-#define __STATEMENT_DATA_INCLUDED
+#ifndef __COMPILER_TEST_INCLUDED
+#define __COMPILER_TEST_INCLUDED
 
-#include <memory>
-#include <string>
-#include <vector>
-
-class StatementData {
-private:
-  std::string m_text;
-  int m_size;
-  int m_line;
-
-  StatementData (std::string& text, int size, int line);
-
-  static std::shared_ptr<StatementData> convertLine (std::string& text, int lineNo);
-
-public:
-  static std::vector<std::shared_ptr<StatementData>> readFromFile (std::string filename);
-
-  int line (void) const;
-  int size (void) const;
-  const std::string& text (void) const;
-};
+namespace compilerTest {
+  void compile (void);
+}
 
 #endif

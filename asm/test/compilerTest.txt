@@ -4,16 +4,16 @@ start:
   db "tekst een", 0xA, 0, "tekst twee", 0xA, 0  ;23
 
 een_stukje_verder:
-  add cx, bx                ;2
-  or cl, bl                 ;2
-  adc [0x1234], ax          ;4
-  sbb [di + bp], ah         ;2
-  and [bp + si - 2], bp     ;3
-  es:                       ;1
-  xor [bx + si - 0x81], sp  ;4
-  cs:                       ;1
+  add cx, bx                 ;2
+  or cl, bl                  ;2
+  adc [0x1234], ax           ;4
+  sbb [di + bp], ah          ;2
+  and [bp + si + -2], bp     ;3
+  es:                        ;1
+  xor [bx + si + -0x81], sp  ;4
+  cs:                        ;1
 label_3:
-  sub [bx - 0x80], bh       ;3
+  sub [bx + -0x80], bh      ;3
   ss:                       ;1
   cmp bx, [si]              ;2
   ds:                       ;1
@@ -55,7 +55,7 @@ label_3:
   cmp word ptr [een_stukje_verder - 23], 0x7F  ;5
   xor word ptr [0x1080], 0x80                  ;6
   adc word ptr [si + 0x180], 0x234             ;6
-  cmp word ptr [di - 0x200], -0x81             ;6
+  cmp word ptr [di + -0x200], -0x81            ;6
 
   jmp label_3   ;2
   jmp label_3   ;3
@@ -84,12 +84,12 @@ label_3:
   mov [een_stukje_verder], al  ;3
   mov [bx + di], al            ;2
 
-  mov [bp + si + 0x7F], cx  ;3
-  mov [bx + si - 0x80], ah  ;3
-  mov [bp + 2], di          ;3
+  mov [bp + si + 0x7F], cx   ;3
+  mov [bx + si + -0x80], ah  ;3
+  mov [bp + 2], di           ;3
 
   mov [di + 0x80], bh   ;4
-  mov [si - 0x81], bx   ;4
+  mov [si + -0x81], bx  ;4
   mov [bx + 0x1C8], ch  ;4
 
   mov sp, [bx]                 ;2
@@ -98,13 +98,13 @@ label_3:
   mov al, [een_stukje_verder]  ;3
   mov al, [bx + di]            ;2
 
-  mov cx, [bp + si + 0x7F]  ;3
-  mov ah, [bx + si - 0x80]  ;3
-  mov di, [bp - 2]          ;3
+  mov cx, [bp + si + 0x7F]   ;3
+  mov ah, [bx + si + -0x80]  ;3
+  mov di, [bp + -2]          ;3
 
-  mov bh, [di + 0x80]   ;4
-  mov bx, [si - 0x81]   ;4
-  mov ch, [bx + 0x1C8]  ;4
+  mov bh, [di + 0x80]    ;4
+  mov bx, [si + -0x81]   ;4
+  mov ch, [bx + 0x1C8]   ;4
 
   mov dx, cs         ;2
   mov ds, dx         ;2
@@ -159,12 +159,12 @@ label_4:
   test byte ptr [0x2050], 0xC8    ;5
   test word ptr [0x2050], 0x7FFE  ;6
 
-  test byte ptr [bp + si - 0x80], 0x87  ;4
-  test word ptr [bx + si - 0x80], 0x2E  ;5
-  test word ptr [bp - 0x80], 0x3E8      ;5
-  test byte ptr [di + 0x1234], 0xA3     ;5
-  test word ptr [si + 0x1234], 0x64     ;6
-  test word ptr [bx + 0x1234], 0x2710   ;6
+  test byte ptr [bp + si + -0x80], 0x87  ;4
+  test word ptr [bx + si + -0x80], 0x2E  ;5
+  test word ptr [bp + -0x80], 0x3E8      ;5
+  test byte ptr [di + 0x1234], 0xA3      ;5
+  test word ptr [si + 0x1234], 0x64      ;6
+  test word ptr [bx + 0x1234], 0x2710    ;6
 
   xchg [bx + di], bx  ;2
   xchg bx, [bx + di]  ;2
@@ -272,7 +272,7 @@ label_5:
   out 0x12, ax  ;2
 
   lea cx, [si]                ;2
-  les bx, [di - 8]            ;3
+  les bx, [di + -8]           ;3
   lds dx, [bp + di + 0x1234]  ;4
 
   jo label_5      ;2

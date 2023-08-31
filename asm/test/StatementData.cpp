@@ -38,7 +38,7 @@ std::shared_ptr<StatementData> StatementData::convertLine (std::string& text, in
   return std::shared_ptr<StatementData> (new StatementData (text, statementSize, lineNo));
 }
 
-std::vector<std::shared_ptr<StatementData>> StatementData::readFromFile (std::string& filename) {
+std::vector<std::shared_ptr<StatementData>> StatementData::readFromFile (std::string filename) {
   int lineNo = 0;
   std::string text;
   std::ifstream stream (filename);

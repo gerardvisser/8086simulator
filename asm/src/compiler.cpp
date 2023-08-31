@@ -26,7 +26,7 @@
 #include <map>
 
 #define ACCUMULATOR 0
-#define UNDEFINED_CONSTANT 0x8000000000000000
+#define UNDEFINED_CONSTANT 0x8000000000000000LL
 
 static void checkAndAddConstant (
     std::map<std::string, int64_t>& constants,
@@ -127,7 +127,7 @@ static int calculateExpression (
   int tokenCount = statement->tokenCount () - expressionStartIndex;
   std::unique_ptr<const Expression> expression = Expression::create (tokens, tokenCount, constants, labels);
   int64_t value = expression->value ();
-  if (value < -0x80000000 || value > 0xFFFFFFFF) {
+  if (value < -0x80000000LL || value > 0xFFFFFFFFLL) {
     throw ParseException ("Error in line %d, column %d: expression value too large.", tokens[0]->line (), tokens[0]->column ());
   }
   return value;
@@ -151,6 +151,7 @@ static bool canCalculateConstant (
     std::shared_ptr<Statement>& statement,
     int expressionStartIndex,
     const std::map<std::string, int64_t>& constants) {
+
   int i = expressionStartIndex;
   while (i < statement->tokenCount () && Expression::isExpressionToken (statement->token (i)->type ())) {
     std::shared_ptr<Token> token = statement->token (i);
@@ -160,6 +161,7 @@ static bool canCalculateConstant (
         return false;
       }
     }
+    ++i;
   }
   return true;
 }
@@ -168,6 +170,7 @@ static void checkAndAddConstant (
     std::map<std::string, int64_t>& constants,
     const std::map<std::string, int>& labels,
     std::shared_ptr<Statement>& statement) {
+
   std::shared_ptr<Token>& token = statement->token (0);
   const std::string& constant = token->text ();
   auto labelsIter = labels.find (constant);
@@ -876,8 +879,12 @@ static void setWidthOfImmediateOperandOfAddInstruction (
   if (canCalculateConstant (statement, expressionStart, constants)) {
     int constVal = calculateWordValue (statement, expressionStart, constants, labels);
     if (constVal <= -0x81 || constVal > 0x7F) {
-      operand.width (Operand::Width::WORD);
-      checkOperandWidthsAreTheSame (statement);
+      if (statement->operand (0).width () == Operand::Width::WORD || constVal <= -0x81 || constVal > 0xFF) {
+        operand.width (Operand::Width::WORD);
+        checkOperandWidthsAreTheSame (statement);
+      } else {
+        operand.width (Operand::Width::BYTE);
+      }
     } else {
       operand.width (Operand::Width::BYTE);
     }
