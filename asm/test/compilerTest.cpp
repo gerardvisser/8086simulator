@@ -86,7 +86,16 @@ void compilerTest::compile (void) {
     assertTrue (i + statementData->size () <= compilation.size (),
         "Couldn't read the actual bytes for statement in line %d.\n", statementData->line ());
     for (int j = 0; j < statementData->size (); ++j) {
-      assertTrue (expected[j] == compilation.bytes ()[i + j], "Compilation incorrect for line %d (%s).\n", statementData->line (), statementData->text ().c_str ());
+
+      if (expected[j] != compilation.bytes ()[i + j]) {
+        printf ("An error will occur (offset=0x%X)\n", i);
+        for (int k = 0; k < statementData->size (); ++k) {
+          printf ("  index:%d, expected: %02X, actual: %02X\n", k, expected[k], compilation.bytes ()[i + k]);
+        }
+      }
+
+      assertTrue (expected[j] == compilation.bytes ()[i + j], "  Compilation incorrect for line %d (%s).\n", statementData->line (), statementData->text ().c_str ());
+
     }
     i += statementData->size ();
     ++statements;

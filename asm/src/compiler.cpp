@@ -1143,11 +1143,11 @@ static void appendAdd (
   if (dstOperand.type () == Operand::Type::REGISTER) {
 
     if (srcOperand.type () == Operand::Type::REGISTER) {
-      bytes[0] = type | 2 | dstOperand.width () == Operand::Width::WORD;
+      bytes[0] = type | dstOperand.width () == Operand::Width::WORD;
       bytes[1] = 3 << 3;
-      bytes[1] |= dstOperand.id ();
-      bytes[1] <<= 3;
       bytes[1] |= srcOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= dstOperand.id ();
     } else if (srcOperand.type () == Operand::Type::POINTER) {
       bytes[0] = type | 2 | dstOperand.width () == Operand::Width::WORD;
       bytes[1] = dstOperand.id () << 3;
@@ -1171,7 +1171,9 @@ static void appendAdd (
         if (srcOperand.width () == Operand::Width::WORD) {
           appendWord (bytes + 2, immValue);
         } else {
-          bytes[0] |= 2;
+          if (dstOperand.width () == Operand::Width::WORD) {
+            bytes[0] |= 2;
+          }
           bytes[2] = immValue;
         }
       }
@@ -1193,7 +1195,9 @@ static void appendAdd (
         bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
         appendWord (bytes, immValue);
       } else {
-        bytes[0] |= 2;
+        if (dstOperand.width () == Operand::Width::WORD) {
+          bytes[0] |= 2;
+        }
         bytes = appendPointerOperand (bytes + 1, statement, constants, labels, 0);
         *bytes = immValue;
       }
@@ -1214,11 +1218,11 @@ static void appendMov (
   if (dstOperand.type () == Operand::Type::REGISTER) {
 
     if (srcOperand.type () == Operand::Type::REGISTER) {
-      bytes[0] = 0x8A | dstOperand.width () == Operand::Width::WORD;
+      bytes[0] = 0x88 | dstOperand.width () == Operand::Width::WORD;
       bytes[1] = 3 << 3;
-      bytes[1] |= dstOperand.id ();
-      bytes[1] <<= 3;
       bytes[1] |= srcOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= dstOperand.id ();
     } else if (srcOperand.type () == Operand::Type::POINTER) {
       if (dstOperand.id () == ACCUMULATOR && srcOperand.id () == 6) {
         bytes[0] = 0xA0 | dstOperand.width () == Operand::Width::WORD;
@@ -1365,9 +1369,9 @@ static void appendTest (
     if (srcOperand.type () == Operand::Type::REGISTER) {
       bytes[0] = 0x84 | dstOperand.width () == Operand::Width::WORD;
       bytes[1] = 3 << 3;
-      bytes[1] |= srcOperand.id ();
-      bytes[1] <<= 3;
       bytes[1] |= dstOperand.id ();
+      bytes[1] <<= 3;
+      bytes[1] |= srcOperand.id ();
     } else if (srcOperand.type () == Operand::Type::POINTER) {
       bytes[0] = 0x84 | dstOperand.width () == Operand::Width::WORD;
       bytes[1] = dstOperand.id () << 3;
