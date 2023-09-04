@@ -3,7 +3,7 @@ include ../common_objs.mk
 
 VPATH=../src:../src/exception:../src/expressions
 
-#objs:=$(objs) asm.o
+objs:=$(objs) asmc.o Config.o
 
-../asm.elf: $(objs)
+../asmc: $(objs)
 	$(CXX) $(LDFLAGS) -o $@ $^
