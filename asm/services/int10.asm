@@ -644,7 +644,10 @@ set_ega_vga_2_colour_palette:
   mov cx, 8
 sev2cp_loop_1:
   out dx, al
+  push ax
+  mov al, 0
   out dx, al
+  pop ax
   add al, 2
   loop sev2cp_loop_1
   mov al, 1
