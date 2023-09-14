@@ -51,6 +51,11 @@ ah_not_5:
   jmp scroll_window_up
 
 ah_not_6:
+  cmp ah, 7
+  jnz ah_not_7
+  jmp scroll_window_down
+
+ah_not_7:
 
   iret
 
@@ -977,7 +982,7 @@ SWU_ACTIVE_PAGE_OFFSET = 6
 SWU_CHAR_HEIGHT = 8
 SWU_STACK_FRAME_SIZE = 10
 
-SWU_16CM_BACKGROUND_COLOUR = 0xFFF0
+SW_16CM_BACKGROUND_COLOUR = 0xFFF0
 
 scroll_window_up:
   push ax
@@ -1145,7 +1150,7 @@ swu_16_colour_modes:
   out dx, ax        ; no logical operation
   mov ax, 0xFF08
   out dx, ax        ; bitmask 0xFF
-  mov [SWU_16CM_BACKGROUND_COLOUR], bh
+  mov [SW_16CM_BACKGROUND_COLOUR], bh
   mov ax, 0x0105
   out dx, ax        ; setting write mode 1
 
@@ -1178,7 +1183,7 @@ swu_16cm_copy_lines_loop:
 swu_16cm_clear_area:
   mul word ptr [bp + SWU_CHAR_HEIGHT]   ; ax = char height * lines to scroll
   mov cx, ax        ; cx = char height * lines to scroll
-  mov al, [SWU_16CM_BACKGROUND_COLOUR]  ; loading the latches
+  mov al, [SW_16CM_BACKGROUND_COLOUR]   ; loading the latches
 
 swu_16cm_clear_area_loop:
   push cx
@@ -1384,3 +1389,452 @@ swu_256cm_clear_area_loop:
   loop swu_256cm_clear_area_loop
 
   jmp end_scroll_window_up
+
+
+;
+; Scroll Window Down
+;
+; Input:
+;   AH = 0x07
+;   AL = number of lines to scroll or 0 to clear the entire window
+;   BH = attribute/colour for cleared lines
+;   CH = y coordinate top left corner
+;   CL = x coordinate top left corner
+;   DH = y coordinate bottom right corner
+;   DL = x coordinate bottom right corner
+;
+SWD_SCREEN_WIDTH = 0
+SWD_WINDOW_WIDTH = 2
+SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH = 4
+SWD_ACTIVE_PAGE_OFFSET = 6
+SWD_CHAR_HEIGHT = 8
+SWD_STACK_FRAME_SIZE = 10
+
+scroll_window_down:
+  push ax
+  push bx
+  push cx
+  push dx
+  push bp
+  push si
+  push di
+  push es
+  push ds
+
+  sub sp, SWD_STACK_FRAME_SIZE
+  mov bp, sp
+
+  std
+
+  xor di, di
+  mov ds, di        ; ds = 0x0000
+
+  mov di, [SCREEN_WIDTH]
+  mov [bp + SWD_SCREEN_WIDTH], di
+  mov di, [ACTIVE_PAGE_OFFSET]
+  mov [bp + SWD_ACTIVE_PAGE_OFFSET], di
+  mov di, [CHAR_HEIGHT]
+  mov [bp + SWD_CHAR_HEIGHT], di
+
+  cmp dh, [SCREEN_ROWS]
+  jbe swd_check_dl
+  mov dh, [SCREEN_ROWS]
+swd_check_dl:
+  cmp dl, [bp + SWD_SCREEN_WIDTH]
+  jb swd_check_cx
+  mov dl, [bp + SWD_SCREEN_WIDTH]
+  dec dl
+swd_check_cx:
+  mov di, dx        ; di = coordinates bottom right corner
+  sub dh, ch
+  jb end_scroll_window_down
+  sub dl, cl
+  jb end_scroll_window_down
+  add dx, 0x101     ; inc dh, inc dl:
+                    ; dh = height of window in rows, dl = width of window in characters
+  mov cx, di        ; ch = y coordinate bottom right corner, cl = x coordinate bottom right corner
+  cmp al, 0
+  jnz swd_check_al_max
+  mov al, dh
+  jmp swd_al_checked
+swd_check_al_max:
+  cmp al, dh
+  jbe swd_al_checked
+  mov al, dh
+swd_al_checked:
+  mov ah, 0         ; ax = lines to scroll
+  push dx
+  mov dh, 0
+  mov [bp + SWD_WINDOW_WIDTH], dx
+  neg dx
+  add dx, [bp + SWD_SCREEN_WIDTH]
+  mov [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH], dx
+  pop dx
+  shr dx, 8         ; dx = height of window in rows
+  mov di, cx
+  and di, 0x00FF    ; di = x coordinate bottom right corner
+  shr cx, 8         ; cx = y coordinate bottom right corner
+  xchg ax, cx       ; ax = y coordinate bottom right corner, cx = lines to scroll
+
+  mov bl, [ACTIVE_MODE]
+  cmp bl, 3
+  ja swd_mode_above_3
+  jmp swd_text_modes
+swd_mode_above_3:
+  cmp bl, 5
+  ja swd_mode_above_5
+  jmp swd_cga_4_colour_modes
+swd_mode_above_5:
+  cmp bl, 6
+  ja swd_mode_above_6
+  jmp swd_cga_2_colour_mode
+swd_mode_above_6:
+  cmp bl, 0x13
+  jnz swd_16_colour_modes
+  jmp swd_256_colour_mode
+
+end_scroll_window_down:
+  add sp, SWD_STACK_FRAME_SIZE
+  pop ds
+  pop es
+  pop di
+  pop si
+  pop bp
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+swd_text_modes:
+  mov si, 0xB800
+  mov ds, si
+  mov es, si
+  push dx           ; push 'height of window in rows'
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  pop dx            ; dx = height of window in rows
+  add di, ax
+  shl di, 1         ; (character width = 2 bytes) es:di = address of bottom right corner (destination)
+  add di, [bp + SWD_ACTIVE_PAGE_OFFSET]  ; adjusting di for active page
+  shl word ptr [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH], 1  ; character width = 2 bytes
+
+  cmp cx, dx
+  jz swd_tm_clear_area
+
+  mov ax, cx        ; ax = lines to scroll
+  push dx           ; push 'height of window in rows'
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  pop dx            ; dx = height of window in rows
+  shl ax, 1
+  mov si, di
+  sub si, ax        ; ds:si = address of line that will become the bottom right corner of the window (source)
+  sub dx, cx        ; dx = height of window in rows - lines to scroll
+  xchg cx, dx       ; cx = height of window in rows - lines to scroll, dx = lines to scroll
+
+swd_tm_copy_lines_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  pop cx
+  loop swd_tm_copy_lines_loop
+
+  mov cx, dx        ; cx = lines to scroll
+
+swd_tm_clear_area:
+  mov ah, bh
+  mov al, 0x20
+
+swd_tm_clear_area_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  pop cx
+  loop swd_tm_clear_area_loop
+
+  jmp end_scroll_window_down
+
+swd_16_colour_modes:
+  push dx           ; push 'height of window in rows'
+
+  mov si, 0xA000
+  mov ds, si
+  mov es, si
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  add di, ax
+  mov ax, [bp + SWD_CHAR_HEIGHT]
+  dec ax
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  add di, ax        ; es:di = address of bottom right corner (destination)
+  add di, [bp + SWD_ACTIVE_PAGE_OFFSET]  ; adjusting di for active page
+
+  mov dx, 0x3CE
+  mov ax, 0x0205
+  out dx, ax        ; setting write mode 2
+  mov ax, 0x0003
+  out dx, ax        ; no logical operation
+  mov ax, 0xFF08
+  out dx, ax        ; bitmask 0xFF
+  mov [SW_16CM_BACKGROUND_COLOUR], bh
+  mov ax, 0x0105
+  out dx, ax        ; setting write mode 1
+
+  pop dx            ; dx = height of window in rows
+
+  mov ax, cx        ; ax = lines to scroll
+  cmp cx, dx
+  jz swd_16cm_clear_area
+
+  push dx           ; push 'height of window in rows'
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  pop dx            ; dx = height of window in rows
+  mov si, di
+  sub si, ax        ; ds:si = address of line that will become the bottom right corner of the window (source)
+  sub dx, cx        ; dx = height of window in rows - lines to scroll
+  mov ax, dx        ; ax = height of window in rows - lines to scroll
+  mul word ptr [bp + SWD_CHAR_HEIGHT]   ; ax = char height * (height of window in rows - lines to scroll)
+  xchg ax, cx       ; cx = char height * (height of window in rows - lines to scroll), ax = lines to scroll
+
+swd_16cm_copy_lines_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsb
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  pop cx
+  loop swd_16cm_copy_lines_loop
+
+swd_16cm_clear_area:
+  mul word ptr [bp + SWD_CHAR_HEIGHT]   ; ax = char height * lines to scroll
+  mov cx, ax        ; cx = char height * lines to scroll
+  mov al, [SW_16CM_BACKGROUND_COLOUR]   ; loading the latches
+
+swd_16cm_clear_area_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosb
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  pop cx
+  loop swd_16cm_clear_area_loop
+
+  jmp end_scroll_window_down
+
+swd_cga_4_colour_modes:
+  push dx           ; push 'height of window in rows'
+
+  mov si, 0xB800
+  mov ds, si
+  mov es, si
+  shr word ptr [bp + SWD_CHAR_HEIGHT], 1  ; dividing char. height by two because of cga addressing
+  shl word ptr [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH], 1  ; character width = 2 bytes
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  add di, ax
+  mov ax, [bp + SWD_CHAR_HEIGHT]
+  dec ax
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  add di, ax
+  shl di, 1         ; character width = 2 bytes
+  add di, 0x2000    ; es:di = address of bottom right corner (destination)
+
+  pop dx            ; dx = height of window in rows
+
+  mov ax, cx        ; ax = lines to scroll
+  cmp cx, dx
+  jz swd_c4cm_clear_area
+
+  push dx           ; push 'height of window in rows'
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  pop dx            ; dx = height of window in rows
+  shl ax, 1         ; character width = 2 bytes
+  mov si, di
+  sub si, ax        ; ds:si = address of line that will become the bottom right corner of the window (source)
+
+  sub dx, cx        ; dx = height of window in rows - lines to scroll
+  mov ax, dx        ; ax = height of window in rows - lines to scroll
+  mul word ptr [bp + SWD_CHAR_HEIGHT]   ; ax = char height * (height of window in rows - lines to scroll) / 2
+  xchg ax, cx       ; cx = char height * (height of window in rows - lines to scroll) / 2, ax = lines to scroll
+
+swd_c4cm_copy_lines_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub di, 0x2000 - 80
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub si, 0x2000 - 80
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  add di, 0x2000
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  add si, 0x2000
+  pop cx
+  loop swd_c4cm_copy_lines_loop
+
+swd_c4cm_clear_area:
+  mul word ptr [bp + SWD_CHAR_HEIGHT]  ; ax = lines to scroll * char height / 2
+  mov cx, ax        ; cx = lines to scroll * char height / 2
+
+  and bh, 3
+  mov al, bh
+  shl al, 2
+  or al, bh
+  shl al, 2
+  or al, bh
+  shl al, 2
+  or al, bh
+  mov ah, al        ; ax now contains 8 pixels with the background colour
+
+swd_c4cm_clear_area_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub di, 0x2000 - 80
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  add di, 0x2000
+  pop cx
+  loop swd_c4cm_clear_area_loop
+
+  jmp end_scroll_window_down
+
+swd_cga_2_colour_mode:
+  push dx           ; push 'height of window in rows'
+
+  mov si, 0xB800
+  mov ds, si
+  mov es, si
+  shr word ptr [bp + SWD_CHAR_HEIGHT], 1  ; dividing char. height by two because of cga addressing
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  add di, ax
+  mov ax, [bp + SWD_CHAR_HEIGHT]
+  dec ax
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  add di, ax
+  add di, 0x2000    ; es:di = address of bottom right corner (destination)
+
+  pop dx            ; dx = height of window in rows
+
+  mov ax, cx        ; ax = lines to scroll
+  cmp cx, dx
+  jz swd_c2cm_clear_area
+
+  push dx           ; push 'height of window in rows'
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  pop dx            ; dx = height of window in rows
+  mov si, di
+  sub si, ax        ; ds:si = address of line that will become the bottom right corner of the window (source)
+
+  sub dx, cx        ; dx = height of window in rows - lines to scroll
+  mov ax, dx        ; ax = height of window in rows - lines to scroll
+  mul word ptr [bp + SWD_CHAR_HEIGHT]   ; ax = char height * (height of window in rows - lines to scroll) / 2
+  xchg ax, cx       ; cx = char height * (height of window in rows - lines to scroll) / 2, ax = lines to scroll
+
+swd_c2cm_copy_lines_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsb
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub di, 0x2000 - 80
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub si, 0x2000 - 80
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsb
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  add di, 0x2000
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  add si, 0x2000
+  pop cx
+  loop swd_c2cm_copy_lines_loop
+
+swd_c2cm_clear_area:
+  mul word ptr [bp + SWD_CHAR_HEIGHT]  ; ax = lines to scroll * char height / 2
+  mov cx, ax        ; cx = lines to scroll * char height / 2
+  mov al, 0         ; background colour always 0 (bh ignored)
+
+swd_c2cm_clear_area_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosb
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub di, 0x2000 - 80
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosb
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  add di, 0x2000
+  pop cx
+  loop swd_c2cm_clear_area_loop
+
+  jmp end_scroll_window_down
+
+swd_256_colour_mode:
+  push dx           ; push 'height of window in rows'
+
+  mov si, 0xA000
+  mov ds, si
+  mov es, si
+  shl word ptr [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH], 3  ; character width = 8 bytes
+  shl word ptr [bp + SWD_WINDOW_WIDTH], 2  ; character width = 8 bytes, copying will be done word by word
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  add di, ax
+  mov ax, [bp + SWD_CHAR_HEIGHT]
+  dec ax
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  add di, ax
+  shl di, 3         ; character width = 8 bytes
+  add di, 6         ; (character width = 8 bytes, copying word by word) es:di = address of bottom right corner (destination)
+
+  pop dx            ; dx = height of window in rows
+
+  mov ax, cx        ; ax = lines to scroll
+  cmp cx, dx
+  jz swd_256cm_clear_area
+
+  push dx           ; push 'height of window in rows'
+  mul word ptr [bp + SWD_SCREEN_WIDTH]
+  mul word ptr [bp + SWD_CHAR_HEIGHT]
+  pop dx            ; dx = height of window in rows
+  shl ax, 3         ; character width = 8 bytes
+  mov si, di
+  sub si, ax        ; ds:si = address of line that will become the bottom right corner of the window (source)
+
+  sub dx, cx        ; dx = height of window in rows - lines to scroll
+  mov ax, dx        ; ax = height of window in rows - lines to scroll
+  mul word ptr [bp + SWD_CHAR_HEIGHT]   ; ax = char height * (height of window in rows - lines to scroll)
+  xchg ax, cx       ; cx = char height * (height of window in rows - lines to scroll), ax = lines to scroll
+
+swd_256cm_copy_lines_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep movsw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  sub si, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  pop cx
+  loop swd_256cm_copy_lines_loop
+
+swd_256cm_clear_area:
+  mul word ptr [bp + SWD_CHAR_HEIGHT]   ; ax = char height * lines to scroll
+  mov cx, ax        ; cx = char height * lines to scroll
+  mov al, bh
+  mov ah, bh        ; ax now contains two pixels with the background colour
+
+swd_256cm_clear_area_loop:
+  push cx
+  mov cx, [bp + SWD_WINDOW_WIDTH]
+  rep stosw
+  sub di, [bp + SWD_SCREEN_WIDTH_MINUS_WINDOW_WIDTH]
+  pop cx
+  loop swd_256cm_clear_area_loop
+
+  jmp end_scroll_window_down
