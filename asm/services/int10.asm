@@ -4,7 +4,7 @@
 ; loaded at: 0xC000:0x0010
 ;
 
-; Variable offsets:
+; Variable offsets (relative to cs):
 
 CGA_COLOURS = 0
 EGA_COLOURS = 2
@@ -12,6 +12,8 @@ DEFAULT_256_COLOURS = 4
 FONT_8 = 6
 FONT_14 = 8
 FONT_16 = 10
+
+GFX_MODE_BACKGROUND_COLOUR = 0xF
 
 ; Offsets relative to segment 0x0000:
 
@@ -56,6 +58,11 @@ ah_not_6:
   jmp scroll_window_down
 
 ah_not_7:
+  cmp ah, 8
+  jnz ah_not_8
+  jmp read_character_and_attribute
+
+ah_not_8:
 
   iret
 
@@ -206,6 +213,7 @@ end_set_video_mode:
   ;  ch = character height
   ;  cl = screen rows minus one
   ;  si = regen size
+  ;  ds = cs
   xor dx, dx
   mov es, dx        ; es = 0x0000
   mov di, INT_43
@@ -252,6 +260,8 @@ svm_write_screen_width:
   stosw
   mov al, 0
   stosb             ; storing high byte of CHAR_HEIGHT
+  ;
+  mov byte ptr [GFX_MODE_BACKGROUND_COLOUR], 0
   ;
   mov dx, 0x3C4
   mov al, 0x01
@@ -1838,3 +1848,204 @@ swd_256cm_clear_area_loop:
   loop swd_256cm_clear_area_loop
 
   jmp end_scroll_window_down
+
+
+;
+; Read Character And Attribute
+;
+; Input:
+;   AH = 0x08
+;   BH = page
+; Output:
+;   AH = attribute
+;   AL = character code (code page 437)
+;
+RCAA_STACK_FRAME_SIZE = 16
+
+read_character_and_attribute:
+  push bx
+  push cx
+  push dx
+  push bp
+  push si
+  push di
+  push es
+  push ds
+
+  sub sp, RCAA_STACK_FRAME_SIZE
+  mov bp, sp
+
+  cld
+
+  xor ax, ax
+  mov ds, ax        ; ds = 0x0000
+
+  mov bl, [ACTIVE_MODE]
+  cmp bl, 3
+  ja rcaa_mode_above_3
+  jmp rcaa_text_modes
+rcaa_mode_above_3:
+  cmp bl, 5
+  ja rcaa_mode_above_5
+  jmp rcaa_cga_4_colour_modes
+rcaa_mode_above_5:
+  cmp bl, 6
+  ja rcaa_mode_above_6
+  jmp rcaa_cga_2_colour_mode
+rcaa_mode_above_6:
+  cmp bl, 0x13
+  jnz rcaa_16_colour_modes
+  jmp rcaa_256_colour_mode
+
+rcaa_text_modes:
+  cmp bh, 7
+  ja end_read_character_and_attribute  ; no valid page specified: return 0 (ax should be 0 here!)
+  mov ax, [REGEN_SIZE]
+  shr bx, 8         ; bx = page
+  mul bx            ; ax = offset of top left character in page
+  mov si, ax        ; si = offset of top left character in page
+  ;
+  shl bx, 1         ; bx = 2 * page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] + x
+  shl ax, 1         ; character width = 2 bytes
+  add si, ax        ; si = location of character and attribute
+  ;
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  lodsw             ; ah = attribute, al = character code
+
+end_read_character_and_attribute:
+  add sp, RCAA_STACK_FRAME_SIZE
+  pop ds
+  pop es
+  pop di
+  pop si
+  pop bp
+  pop dx
+  pop cx
+  pop bx
+  iret
+
+rcaa_16_colour_modes:
+  cmp bl, 0x11
+  jb rcaa_mode_below_11
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  xor si, si        ; si = page offset
+  jmp rcaa_si_equals_page_offset
+rcaa_mode_below_11:
+  cmp bl, 0xF
+  jb rcaa_mode_below_F
+  cmp bh, 2
+  jb rcaa_valid_page
+  jmp end_read_character_and_attribute  ; no valid page specified: return 0 (ax should be 0 here!)
+rcaa_mode_below_F:
+  cmp bl, 0xE
+  jb rcaa_mode_below_E
+  cmp bh, 4
+  jb rcaa_valid_page
+  jmp end_read_character_and_attribute  ; no valid page specified: return 0 (ax should be 0 here!)
+rcaa_mode_below_E:
+  cmp bh, 7
+  ja end_read_character_and_attribute  ; no valid page specified: return 0 (ax should be 0 here!)
+rcaa_valid_page:
+  mov ax, [REGEN_SIZE]
+  shr bx, 8         ; bx = page
+  mul bx            ; ax = offset of top left pixel in page (page offset)
+  mov si, ax        ; si = page offset
+  shl bx, 1         ; bx = 2 * page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+rcaa_si_equals_page_offset:
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  mul word ptr [CHAR_HEIGHT]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x
+  add si, ax        ; si = location of character's first eight pixels
+  ;
+  mov bx, [SCREEN_WIDTH]  ; bx = screen width in characters
+  dec bx            ; bx = screen width in characters - 1
+  mov cx, [CHAR_HEIGHT]   ; cx = character height
+  push [INT_43]     ; push 'offset of font table'
+  mov ax, 0xA000
+  mov ds, ax        ; ds = 0xA000
+  push ss
+  pop es            ; es = ss
+  mov di, bp
+  ;
+  mov dx, 0x3CE
+  mov ax, 0x0805
+  out dx, ax        ; setting read mode 1
+  mov ax, 0x0F07
+  out dx, ax        ; colour don't care 0xF
+  cs: mov ah, [GFX_MODE_BACKGROUND_COLOUR]
+  mov al, 2
+  out dx, ax        ; colour compare is background colour
+  ;
+  push cx           ; push 'character height'
+rcaa_16cm_read_char_bits:
+  lodsb
+  xor al, 0xFF      ; al = eight character bits
+  stosb
+  add si, bx        ; si = location of character's next eight pixels
+  loop rcaa_16cm_read_char_bits
+  pop bx            ; bx = character height
+  ;
+  pop si            ; si = offset of font table
+  call find_character_code
+  jmp end_read_character_and_attribute
+
+rcaa_cga_4_colour_modes:
+  ;TODO
+  jmp end_read_character_and_attribute
+
+rcaa_cga_2_colour_mode:
+  ;TODO
+  jmp end_read_character_and_attribute
+
+rcaa_256_colour_mode:
+  ;TODO
+  jmp end_read_character_and_attribute
+
+;
+; Function: find_character_code
+; Input:
+;   BX = character height
+;   ES:BP = pointer to the character bit pattern to identify
+;   SI = offset of font table
+; Output:
+;   AX = character code (code page 437)
+; Affected registers:
+;   CX, DX, SI, DI, DS
+;
+find_character_code:
+  push cs
+  pop ds            ; ds:si = pointer to font table
+  add si, bx        ; si = offset for character 0x01
+  ;
+  mov cx, 0xFF
+fcc_check_char:
+  mov ax, cx        ; ax = loop count
+  mov dx, si        ; dx = offset of character to compare
+  mov di, bp
+  mov cx, bx        ; cx = character height
+  repz cmpsb
+  jnz fcc_checked_char_not_equal
+  mov cx, ax        ; restore loop count
+  jmp fcc_checking_chars_done
+fcc_checked_char_not_equal:
+  mov si, dx
+  add si, bx        ; si = offset of next character to compare
+  mov cx, ax        ; restore loop count
+  loop fcc_check_char
+  ;
+fcc_checking_chars_done:
+  mov ax, 0x100
+  sub ax, cx
+  mov ah, 0
+  ret
