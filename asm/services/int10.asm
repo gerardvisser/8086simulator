@@ -1971,6 +1971,7 @@ rcaa_si_equals_page_offset:
   mov bx, [SCREEN_WIDTH]  ; bx = screen width in characters
   dec bx            ; bx = screen width in characters - 1
   mov cx, [CHAR_HEIGHT]   ; cx = character height
+  push [INT_43 + 2] ; push 'segment of font table'
   push [INT_43]     ; push 'offset of font table'
   mov ax, 0xA000
   mov ds, ax        ; ds = 0xA000
@@ -1997,19 +1998,123 @@ rcaa_16cm_read_char_bits:
   pop bx            ; bx = character height
   ;
   pop si            ; si = offset of font table
+  pop ds            ; ds = segment of font table
   call find_character_code
   jmp end_read_character_and_attribute
 
 rcaa_cga_4_colour_modes:
-  ;TODO
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  shl cx, 1         ; cx = 2 * x
+  mul word ptr [SCREEN_WIDTH]
+  mul word ptr [CHAR_HEIGHT]
+  add ax, cx        ; ax = y * 2 * [SCREEN_WIDTH] * [CHAR_HEIGHT] / 2 + 2 * x
+  mov si, ax        ; si = location of character's first four pixels
+  ;
+  mov bx, [SCREEN_WIDTH]  ; bx = screen width in characters
+  shl bx, 1         ; bx = screen width in bytes
+  mov cx, [CHAR_HEIGHT]   ; cx = character height
+  push [INT_43 + 2] ; push 'segment of font table'
+  push [INT_43]     ; push 'offset of font table'
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  push ss
+  pop es            ; es = ss
+  mov di, bp
+  cs: mov dl, [GFX_MODE_BACKGROUND_COLOUR]
+  ;
+  push cx           ; push 'character height'
+  shr cx, 1         ; two scan lines per loop
+rcaa_c4cm_read_char_bits:
+  call get_character_line_pattern_cga_4_colour_mode
+  stosb
+  add si, 0x1FFE
+  call get_character_line_pattern_cga_4_colour_mode
+  stosb
+  sub si, 0x2002
+  add si, bx
+  loop rcaa_c4cm_read_char_bits
+  pop bx            ; bx = character height
+  ;
+  pop si            ; si = offset of font table
+  pop ds            ; ds = segment of font table
+  call find_character_code
   jmp end_read_character_and_attribute
 
 rcaa_cga_2_colour_mode:
-  ;TODO
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  mul word ptr [CHAR_HEIGHT]
+  shr ax, 1         ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] / 2
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] / 2 + x
+  mov si, ax        ; si = location of character's first eight pixels
+  ;
+  mov bx, [SCREEN_WIDTH]  ; bx = screen width in characters (and bytes)
+  mov cx, [CHAR_HEIGHT]   ; cx = character height
+  push [INT_43 + 2] ; push 'segment of font table'
+  push [INT_43]     ; push 'offset of font table'
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  push ss
+  pop es            ; es = ss
+  mov di, bp
+  ;
+  push cx           ; push 'character height'
+  shr cx, 1         ; two scan lines per loop
+rcaa_c2cm_read_char_bits:
+  movsb
+  add si, 0x1FFF
+  movsb
+  sub si, 0x2001
+  add si, bx
+  loop rcaa_c2cm_read_char_bits
+  pop bx            ; bx = character height
+  ;
+  pop si            ; si = offset of font table
+  pop ds            ; ds = segment of font table
+  call find_character_code
   jmp end_read_character_and_attribute
 
 rcaa_256_colour_mode:
-  ;TODO
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  mul word ptr [CHAR_HEIGHT]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x
+  shl ax, 3         ; ax = 8 * (y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x)
+  mov si, ax        ; si = location of character's first pixel
+  ;
+  mov bx, [SCREEN_WIDTH]  ; bx = screen width in characters
+  dec bx            ; bx = screen width in characters - 1
+  shl bx, 3         ; bx = screen width in bytes - 8
+  mov cx, [CHAR_HEIGHT]   ; cx = character height
+  push [INT_43 + 2] ; push 'segment of font table'
+  push [INT_43]     ; push 'offset of font table'
+  mov ax, 0xA000
+  mov ds, ax        ; ds = 0xA000
+  push ss
+  pop es            ; es = ss
+  mov di, bp
+  cs: mov dl, [GFX_MODE_BACKGROUND_COLOUR]
+  ;
+  push cx           ; push 'character height'
+rcaa_256cm_read_char_bits:
+  call get_character_line_pattern_256_colour_mode
+  stosb
+  add si, bx
+  loop rcaa_256cm_read_char_bits
+  pop bx            ; bx = character height
+  ;
+  pop si            ; si = offset of font table
+  pop ds            ; ds = segment of font table
+  call find_character_code
   jmp end_read_character_and_attribute
 
 ;
@@ -2017,15 +2122,13 @@ rcaa_256_colour_mode:
 ; Input:
 ;   BX = character height
 ;   ES:BP = pointer to the character bit pattern to identify
-;   SI = offset of font table
+;   DS:SI = pointer to font table
 ; Output:
 ;   AX = character code (code page 437)
 ; Affected registers:
 ;   CX, DX, SI, DI, DS
 ;
 find_character_code:
-  push cs
-  pop ds            ; ds:si = pointer to font table
   add si, bx        ; si = offset for character 0x01
   ;
   mov cx, 0xFF
@@ -2048,4 +2151,75 @@ fcc_checking_chars_done:
   mov ax, 0x100
   sub ax, cx
   mov ah, 0
+  ret
+
+;
+; Function: get_character_line_pattern_cga_4_colour_mode
+; Input:
+;   DL = background colour
+;   DS:SI = pointer to two bytes in video memory
+; Output:
+;   AL = character line pattern: background bits are 0
+; Affected registers:
+;   AH, DH, SI
+;
+get_character_line_pattern_cga_4_colour_mode:
+  push bx
+  push cx
+  ;
+  lodsw
+  xchg ah, al
+  mov bx, ax
+  xor ax, ax
+  mov cx, 8
+gclpc4cm_loop:
+  mov dh, 0
+  rcl bx, 1
+  rcl dh, 1
+  rcl bx, 1
+  rcl dh, 1
+  cmp dh, dl
+  jz gclpc4cm_clc
+  stc
+  jmp gclpc4cm_add_bit
+gclpc4cm_clc:
+  clc
+gclpc4cm_add_bit:
+  rcl al, 1
+  loop gclpc4cm_loop
+  ;
+  pop cx
+  pop bx
+  ret
+
+;
+; Function: get_character_line_pattern_256_colour_mode
+; Input:
+;   DL = background colour
+;   DS:SI = pointer to eight bytes in video memory
+; Output:
+;   AL = character line pattern: background bits are 0
+; Affected registers:
+;   SI
+;
+get_character_line_pattern_256_colour_mode:
+  push bx
+  push cx
+  ;
+  mov cx, 8
+gclp256cm_loop:
+  lodsb
+  cmp al, dl
+  jz gclp256cm_clc
+  stc
+  jmp gclp256cm_add_bit
+gclp256cm_clc:
+  clc
+gclp256cm_add_bit:
+  rcl bl, 1
+  loop gclp256cm_loop
+  mov al, bl
+  ;
+  pop cx
+  pop bx
   ret
