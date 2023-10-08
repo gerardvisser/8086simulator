@@ -63,6 +63,11 @@ ah_not_7:
   jmp read_character_and_attribute
 
 ah_not_8:
+  cmp ah, 9
+  jnz ah_not_9
+  jmp draw_character_and_attribute
+
+ah_not_9:
 
   iret
 
@@ -2223,3 +2228,308 @@ gclp256cm_add_bit:
   pop cx
   pop bx
   ret
+
+
+;
+; Draw Character And Attribute
+;
+; Input:
+;   AH = 0x09
+;   AL = character code (code page 437)
+;   BH = page
+;   BL = attribute/colour
+;   CX = repeat count
+;
+DCAA_COLOUR_AND_CHAR_CODE = 0
+DCAA_COLOUR = 1
+DCAA_STACK_FRAME_SIZE = 2
+
+draw_character_and_attribute:
+  push ax
+  push bx
+  push cx
+  push dx
+  push di
+  push es
+  push ds
+
+  jcxz end_draw_character_and_attribute
+
+  xor dx, dx
+  mov ds, dx        ; ds = 0x0000
+
+  mov dl, [ACTIVE_MODE]
+  cmp dl, 3
+  ja dcaa_gfx_modes
+
+  cmp bh, 7
+  ja end_draw_character_and_attribute
+
+  mov ah, bl        ; ah = attribute, al = character code
+  push ax           ; push 'ah = attribute, al = character code'
+  push cx           ; push 'repeat count'
+  shr bx, 8         ; bx = page
+  mov ax, [REGEN_SIZE]
+  mul bx            ; ax = offset of top left character in page
+  mov di, ax        ; di = offset of top left character in page
+
+  shl bx, 1         ; bx = 2 * page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] + x
+  shl ax, 1         ; character width = 2 bytes
+  add di, ax        ; di = location of character and attribute
+
+  mov ax, 0xB800
+  mov es, ax        ; es = 0xB800
+  pop cx            ; cx = repeat count
+  pop ax            ; ah = attribute, al = character code
+  rep stosw
+
+end_draw_character_and_attribute:
+  pop ds
+  pop es
+  pop di
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+end_dcaa_gfx_modes:
+  add sp, DCAA_STACK_FRAME_SIZE
+  pop si
+  pop bp
+  jmp end_draw_character_and_attribute
+
+dcaa_gfx_modes:
+  push bp
+  push si
+
+  sub sp, DCAA_STACK_FRAME_SIZE
+  mov bp, sp
+  cld
+
+  mov ah, bl        ; ah = colour, al = character code
+  mov [bp + DCAA_COLOUR_AND_CHAR_CODE], ax
+
+  cmp dl, 5
+  ja dcaa_mode_above_5
+  jmp dcaa_cga_4_colour_modes
+dcaa_mode_above_5:
+  cmp dl, 6
+  ja dcaa_mode_above_6
+  jmp dcaa_cga_2_colour_mode
+dcaa_mode_above_6:
+  cmp dl, 0x13
+  jnz dcaa_16_colour_mode
+  jmp dcaa_256_colour_mode
+
+dcaa_16_colour_mode:
+  push cx           ; push 'repeat count'
+  ;
+  mov di, 0xA000
+  mov es, di        ; es = 0xA000
+  ;
+  cmp dl, 0x11
+  jb dcaa_mode_below_11
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  xor di, di        ; di = page offset
+  jmp dcaa_di_equals_page_offset
+dcaa_mode_below_11:
+  cmp dl, 0xF
+  jb dcaa_mode_below_F
+  cmp bh, 2
+  jb dcaa_valid_page
+  jmp end_dcaa_gfx_modes
+dcaa_mode_below_F:
+  cmp dl, 0xE
+  jb dcaa_mode_below_E
+  cmp bh, 4
+  jb dcaa_valid_page
+  jmp end_dcaa_gfx_modes
+dcaa_mode_below_E:
+  cmp bh, 7
+  ja end_dcaa_gfx_modes
+dcaa_valid_page:
+  mov ax, [REGEN_SIZE]
+  shr bx, 8         ; bx = page
+  mul bx            ; ax = offset of top left pixel in page (page offset)
+  mov di, ax        ; di = page offset
+  shl bx, 1         ; bx = 2 * page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+dcaa_di_equals_page_offset:
+  mov bx, [CHAR_HEIGHT]  ; bx = character height
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  mul bx            ; ax *= [CHAR_HEIGHT]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x
+  add di, ax        ; es:di = location of character's first eight pixels
+  ;
+  mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
+  mov ah, 0
+  mul bx            ; ax *= [CHAR_HEIGHT] = character code * character height
+  mov si, [INT_43]
+  add si, ax        ; si = location of character within font table
+  ;
+  mov dx, 0x3CE
+  mov ax, 0xFF08
+  out dx, ax        ; bitmask 0xFF
+  mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
+  mov al, 00
+  out dx, ax        ; set/reset register filled with draw colour
+  test ah, 0x80     ; is colour bit 7 set?
+  jz dcaa_16cm_do_not_use_any_logical_operation
+  ;
+  mov ax, 0x1803
+  out dx, ax        ; no rotation, logical operation = xor
+  mov ax, 0x0305
+  out dx, ax        ; write mode 3
+  ;
+  mov dx, [SCREEN_WIDTH]
+  dec dx            ; dx = screen width - 1
+  pop cx            ; cx = repeat count
+  mov ds, [INT_43 + 2]  ; ds = segment of font table
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height
+  ; dx = screen width - 1
+dcaa_16cm_put_char_repeat_loop_1:
+  push cx
+  push si
+  push di
+  mov cx, bx        ; cx = character height
+dcaa_16cm_put_char_loop_1:
+  es: mov al, [di]  ; loading the latches
+  movsb
+  add di, dx
+  loop dcaa_16cm_put_char_loop_1
+  pop di
+  inc di
+  pop si
+  pop cx
+  loop dcaa_16cm_put_char_repeat_loop_1
+  jmp end_dcaa_gfx_modes
+  ;
+dcaa_16cm_do_not_use_any_logical_operation:
+  mov ax, 0x0003
+  out dx, ax        ; no rotation, no logical operation
+  mov ax, 0x0205
+  out dx, ax        ; write mode 2
+  cs: mov al, [GFX_MODE_BACKGROUND_COLOUR]
+  es: mov [di], al
+  es: mov al, [di]  ; loading the latches
+  mov ax, 0x0305
+  out dx, ax        ; write mode 3
+  ;
+  mov dx, [SCREEN_WIDTH]
+  dec dx            ; dx = screen width - 1
+  pop cx            ; cx = repeat count
+  mov ds, [INT_43 + 2]  ; ds = segment of font table
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height
+  ; dx = screen width - 1
+dcaa_16cm_put_char_repeat_loop_2:
+  push cx
+  push si
+  push di
+  mov cx, bx        ; cx = character height
+dcaa_16cm_put_char_loop_2:
+  movsb
+  add di, dx
+  loop dcaa_16cm_put_char_loop_2
+  pop di
+  inc di
+  pop si
+  pop cx
+  loop dcaa_16cm_put_char_repeat_loop_2
+  jmp end_dcaa_gfx_modes
+
+dcaa_256_colour_mode:
+  push cx           ; push 'repeat count'
+  ;
+  mov di, 0xA000
+  mov es, di        ; es = 0xA000
+  ;
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov bx, [CHAR_HEIGHT]  ; bx = character height
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  mul bx            ; ax *= [CHAR_HEIGHT]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x
+  shl ax, 3         ; (character width = 8 bytes) ax = 8 * (y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x)
+  mov di, ax        ; es:di = location of character's first eight pixels
+  ;
+  mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
+  mov ah, 0
+  mul bx            ; ax *= [CHAR_HEIGHT] = character code * character height
+  mov si, [INT_43]
+  add si, ax        ; si = location of character within font table
+  ;
+  mov dx, [SCREEN_WIDTH]
+  dec dx            ; dx = screen width in chars - 1
+  shl dx, 3         ; dx = char width in bytes * (screen width in chars - 1)
+  pop cx            ; cx = repeat count
+  mov ds, [INT_43 + 2]  ; ds = segment of font table
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height
+  ; dx = 8 * (screen width in chars - 1)
+dcaa_256cm_put_char_repeat_loop:
+  push cx
+  push si
+  push di
+  ;
+  mov cx, bx        ; cx = character height
+  push bx
+dcaa_256cm_put_char_loop:
+  push cx
+  ;
+  mov bh, 0x80
+  mov cx, 8
+dcaa_256cm_put_char_line_loop:
+  test [si], bh
+  jnz dcaa_256cm_set_fgcolour
+  cs: mov al, [GFX_MODE_BACKGROUND_COLOUR]
+  jmp dcaa_256cm_put_pixel
+dcaa_256cm_set_fgcolour:
+  mov al, [bp + DCAA_COLOUR]
+dcaa_256cm_put_pixel:
+  stosb
+  shr bh, 1
+  loop dcaa_256cm_put_char_line_loop
+  ;
+  add di, dx        ; let di point to next line of character
+  inc si            ; let si point to next line of character bit pattern
+  pop cx
+  loop dcaa_256cm_put_char_loop
+  ;
+  pop bx
+  pop di
+  add di, 8
+  pop si
+  pop cx
+  loop dcaa_256cm_put_char_repeat_loop
+  jmp end_dcaa_gfx_modes
+
+dcaa_cga_4_colour_modes:
+  ; TODO
+  jmp end_dcaa_gfx_modes
+
+dcaa_cga_2_colour_mode:
+  ; TODO
+  jmp end_dcaa_gfx_modes
