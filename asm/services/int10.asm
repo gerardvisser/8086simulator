@@ -2255,6 +2255,8 @@ draw_character_and_attribute:
 
   jcxz end_draw_character_and_attribute
 
+  cld
+
   xor dx, dx
   mov ds, dx        ; ds = 0x0000
 
@@ -2311,7 +2313,6 @@ dcaa_gfx_modes:
 
   sub sp, DCAA_STACK_FRAME_SIZE
   mov bp, sp
-  cld
 
   mov ah, bl        ; ah = colour, al = character code
   mov [bp + DCAA_COLOUR_AND_CHAR_CODE], ax
@@ -2381,7 +2382,7 @@ dcaa_di_equals_page_offset:
   mov ax, 0xFF08
   out dx, ax        ; bitmask 0xFF
   mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
-  mov al, 00
+  mov al, 0
   out dx, ax        ; set/reset register filled with draw colour
   test ah, 0x80     ; is colour bit 7 set?
   jz dcaa_16cm_do_not_use_any_logical_operation
@@ -2470,7 +2471,7 @@ dcaa_256_colour_mode:
   mul bx            ; ax *= [CHAR_HEIGHT]
   add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x
   shl ax, 3         ; (character width = 8 bytes) ax = 8 * (y * [SCREEN_WIDTH] * [CHAR_HEIGHT] + x)
-  mov di, ax        ; es:di = location of character's first eight pixels
+  mov di, ax        ; es:di = location of character's first pixel
   ;
   mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
   mov ah, 0
@@ -2527,9 +2528,225 @@ dcaa_256cm_put_pixel:
   jmp end_dcaa_gfx_modes
 
 dcaa_cga_4_colour_modes:
-  ; TODO
+  push cx           ; push 'repeat count'
+  ;
+  mov di, 0xB800
+  mov es, di        ; es = 0xB800
+  ;
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov bx, [CHAR_HEIGHT]  ; bx = character height
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  shl cx, 1         ; (character width = 2 bytes) cx = 2 * x
+  mul word ptr [SCREEN_WIDTH]
+  mul bx            ; ax *= [CHAR_HEIGHT]
+  add ax, cx        ; ax = y * 2 * [SCREEN_WIDTH] * [CHAR_HEIGHT] / 2 + 2 * x
+  mov di, ax        ; es:di = location of character's first four pixels
+  ;
+  mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
+  mov ah, 0
+  mul bx            ; ax *= [CHAR_HEIGHT] = character code * character height
+  mov si, [INT_43]
+  add si, ax        ; si = location of character within font table
+  ;
+  mov dx, [SCREEN_WIDTH]
+  shl dx, 1         ; dx = screen width in bytes
+  shr bx, 1         ; bx = char height / 2
+  pop cx            ; cx = repeat count
+  mov ds, [INT_43 + 2]  ; ds = segment of font table
+  ;
+  test byte ptr [bp + DCAA_COLOUR], 0x80  ; is colour bit 7 set?
+  jnz dcaa_c4cm_use_xor_operation
+  ;
+  and byte ptr [bp + DCAA_COLOUR], 3
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height / 2
+  ; dx = screen width in bytes = screen width in characters * character width in bytes
+dcaa_c4cm_put_char_repeat_loop_normal:
+  push bx
+  push cx
+  push si
+  push di
+  mov cx, bx
+  cs: mov bl, [GFX_MODE_BACKGROUND_COLOUR]  ; Value should be 0, 1, 2 or 3.
+  ;
+dcaa_c4cm_put_char_loop_normal:
+  call create_character_line_pixels_cga_4_colour_mode
+  stosw
+  add di, 0x1FFE
+  call create_character_line_pixels_cga_4_colour_mode
+  stosw
+  sub di, 0x2002
+  add di, dx
+  loop dcaa_c4cm_put_char_loop_normal
+  ;
+  pop di
+  add di, 2
+  pop si
+  pop cx
+  pop bx
+  loop dcaa_c4cm_put_char_repeat_loop_normal
+  jmp end_dcaa_gfx_modes
+  ;
+dcaa_c4cm_use_xor_operation:
+  and byte ptr [bp + DCAA_COLOUR], 3
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height / 2
+  ; dx = screen width in bytes = screen width in characters * character width in bytes
+dcaa_c4cm_put_char_repeat_loop_xor:
+  push bx
+  push cx
+  push si
+  push di
+  mov cx, bx
+  mov bl, 0
+  ;
+dcaa_c4cm_put_char_loop_xor:
+  call create_character_line_pixels_cga_4_colour_mode
+  es: xor [di], ax
+  add di, 0x2000
+  call create_character_line_pixels_cga_4_colour_mode
+  es: xor [di], ax
+  sub di, 0x2000
+  add di, dx
+  loop dcaa_c4cm_put_char_loop_xor
+  ;
+  pop di
+  add di, 2
+  pop si
+  pop cx
+  pop bx
+  loop dcaa_c4cm_put_char_repeat_loop_xor
   jmp end_dcaa_gfx_modes
 
 dcaa_cga_2_colour_mode:
-  ; TODO
+  push cx           ; push 'repeat count'
+  ;
+  mov di, 0xB800
+  mov es, di        ; es = 0xB800
+  ;
+  mov cx, [CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov bx, [CHAR_HEIGHT]  ; bx = character height
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  mul bx            ; ax *= [CHAR_HEIGHT]
+  shr ax, 1
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] * [CHAR_HEIGHT] / 2 + x
+  mov di, ax        ; es:di = location of character's first eight pixels
+  ;
+  mov ax, [bp + DCAA_COLOUR_AND_CHAR_CODE]
+  mov ah, 0
+  mul bx            ; ax *= [CHAR_HEIGHT] = character code * character height
+  mov si, [INT_43]
+  add si, ax        ; si = location of character within font table
+  ;
+  mov dx, [SCREEN_WIDTH]
+  shr bx, 1         ; bx = char height / 2
+  pop cx            ; cx = repeat count
+  mov ds, [INT_43 + 2]  ; ds = segment of font table
+  ;
+  test byte ptr [bp + DCAA_COLOUR], 0x80  ; is colour bit 7 set?
+  jnz dcaa_c2cm_use_xor_operation
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height / 2
+  ; dx = screen width
+dcaa_c2cm_put_char_repeat_loop_normal:
+  push cx
+  push si
+  push di
+  mov cx, bx
+  ;
+dcaa_c2cm_put_char_loop_normal:
+  movsb
+  add di, 0x1FFF
+  movsb
+  sub di, 0x2001
+  add di, dx
+  loop dcaa_c2cm_put_char_loop_normal
+  ;
+  pop di
+  inc di
+  pop si
+  pop cx
+  loop dcaa_c2cm_put_char_repeat_loop_normal
   jmp end_dcaa_gfx_modes
+  ;
+dcaa_c2cm_use_xor_operation:
+  ;
+  ; es:di = screen location
+  ; ds:si = position in font table
+  ; cx = repeat count
+  ; bx = char height / 2
+  ; dx = screen width
+dcaa_c2cm_put_char_repeat_loop_xor:
+  push cx
+  push si
+  push di
+  mov cx, bx
+  ;
+dcaa_c2cm_put_char_loop_xor:
+  lodsb
+  es: xor [di], al
+  add di, 0x2000
+  lodsb
+  es: xor [di], al
+  sub di, 0x2000
+  add di, dx
+  loop dcaa_c2cm_put_char_loop_xor
+  ;
+  pop di
+  inc di
+  pop si
+  pop cx
+  loop dcaa_c2cm_put_char_repeat_loop_xor
+  jmp end_dcaa_gfx_modes
+
+;
+; Function: create_character_line_pixels_cga_4_colour_mode
+; Input:
+;   BL = background colour
+;   DS:SI = position in font table
+;   SS:BP+DCAA_COLOUR = foreground colour
+; Output:
+;   AX = character line pixels (AL = left four pixels, AH = right four pixels)
+;   SI += 1
+; Affected registers:
+;   -
+;
+create_character_line_pixels_cga_4_colour_mode:
+  push cx
+  push dx
+  ;
+  mov cx, 8
+  mov dl, 0x80
+cclpc4cm_loop:
+  shl ax, 2
+  test [si], dl
+  jz cclpc4cm_set_bgcolour
+  or al, [bp + DCAA_COLOUR]
+  shr dl, 1
+  loop cclpc4cm_loop
+  jmp cclpc4cm_loop_end
+cclpc4cm_set_bgcolour:
+  or al, bl
+  shr dl, 1
+  loop cclpc4cm_loop
+cclpc4cm_loop_end:
+  xchg ah, al
+  inc si
+  ;
+  pop dx
+  pop cx
+  ret
