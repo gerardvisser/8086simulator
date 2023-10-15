@@ -68,6 +68,11 @@ ah_not_8:
   jmp draw_character_and_attribute
 
 ah_not_9:
+  cmp ah, 0xA
+  jnz ah_not_A
+  jmp draw_character
+
+ah_not_A:
 
   iret
 
@@ -2750,3 +2755,68 @@ cclpc4cm_loop_end:
   pop dx
   pop cx
   ret
+
+
+;
+; Draw Character
+;
+; Input:
+;   AH = 0x0A
+;   AL = character code (code page 437)
+;   BH = page
+;   BL = colour
+;   CX = repeat count
+;
+draw_character:
+  push ax
+  push bx
+  push cx
+  push dx
+  push di
+  push es
+  push ds
+
+  jcxz end_draw_character
+
+  cld
+
+  xor dx, dx
+  mov ds, dx        ; ds = 0x0000
+
+  mov dl, [ACTIVE_MODE]
+  cmp dl, 4
+  jb dc_text_modes
+  jmp dcaa_gfx_modes
+
+dc_text_modes:
+  cmp bh, 7
+  ja end_draw_character
+  ;
+  push ax           ; push 'al = character code'
+  push cx           ; push 'repeat count'
+  shr bx, 8         ; bx = page
+  mov ax, [REGEN_SIZE]
+  mul bx            ; ax = offset of top left character in page
+  mov di, ax        ; di = offset of top left character in page
+  ;
+  shl bx, 1         ; bx = 2 * page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; ch = row (y), cl = column (x)
+  mov al, ch
+  mov ah, 0         ; ax = row (y)
+  mov ch, 0         ; cx = column (x)
+  mul word ptr [SCREEN_WIDTH]
+  add ax, cx        ; ax = y * [SCREEN_WIDTH] + x
+  shl ax, 1         ; character width = 2 bytes
+  add di, ax        ; di = location of character and attribute
+  ;
+  mov ax, 0xB800
+  mov es, ax        ; es = 0xB800
+  pop cx            ; cx = repeat count
+  pop ax            ; al = character code
+dc_put_char_repeat_loop:
+  stosb
+  inc di
+  loop dc_put_char_repeat_loop
+
+end_draw_character:
+  jmp end_draw_character_and_attribute
