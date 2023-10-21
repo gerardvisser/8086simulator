@@ -73,6 +73,11 @@ ah_not_9:
   jmp draw_character
 
 ah_not_A:
+  cmp ah, 0xB
+  jnz ah_not_B
+  jmp set_cga_palette
+
+ah_not_B:
 
   iret
 
@@ -310,7 +315,7 @@ set_gfx_mode:
   mov si, [CGA_COLOURS]
   call set_cga_ega_dac
   ;
-  call set_cga_palette
+  call set_cga_default_palette
   mov bh, 1
   call set_remaining_attr_registers
   ;
@@ -651,11 +656,11 @@ sced_set_cga_ega_colours_2:
   ret
 
 ;
-; Function: set_cga_palette
+; Function: set_cga_default_palette
 ; Output:
 ;   DX = 0x3C0
 ;
-set_cga_palette:
+set_cga_default_palette:
   mov dx, 0x3DA
   in al, dx         ; set 0x3C0 to expect an index
   mov dx, 0x3C0     ; dx = 0x3C0
@@ -690,12 +695,12 @@ set_cga_palette:
   out dx, al
   inc ax
   mov cx, ax        ; cx = 8
-svm_set_cga_palette_8_16:
+svm_set_cga_default_palette_8_16:
   out dx, al
   add al, 8
   out dx, al
   sub al, 7
-  loop svm_set_cga_palette_8_16
+  loop svm_set_cga_default_palette_8_16
   ret
 
 ;
@@ -765,7 +770,7 @@ sev2cp_loop_2:
 
 ;
 ; Function: set_remaining_attr_registers
-;   Sets registers 0x3C0, 0x10 and 0x3C0, 0x14, puts the index back at 0x20 and reads 0x3DA.
+;   Sets registers 0x3C0, 0x10; 0x3C0, 0x11 and 0x3C0, 0x14, puts the index back at 0x20 and reads 0x3DA.
 ; Input:
 ;   DX = 0x3C0
 ;   BH = value for the mode control register (0x3C0, 0x10).
@@ -775,10 +780,17 @@ set_remaining_attr_registers:
   out dx, al
   mov al, bh
   out dx, al
+  ;
+  mov al, 0x31
+  out dx, al
+  mov al, 0
+  out dx, al
+  ;
   mov al, 0x34
   out dx, al
   mov al, 0
   out dx, al
+  ;
   mov al, 0x20
   out dx, al
   mov dx, 0x3DA
@@ -2820,3 +2832,135 @@ dc_put_char_repeat_loop:
 
 end_draw_character:
   jmp end_draw_character_and_attribute
+
+
+;
+; Set CGA Palette
+;
+; Especially useful for changing colours in modes 4 and 5 (320 x 200 four colour modes).
+;
+; Input:
+;   AH = 0x0B
+;   BH = 0 (background colour and foreground brightness)
+;        1 (palette)
+;   BL = (when BH = 0) bits 3 - 0: background colour, bit 4: foreground brightness
+;      = (when BH = 1) 0: background, green, red, yellow
+;                      1: background, cyan, magenta, white
+;
+set_cga_palette:
+  push ax
+  push bx
+  push dx
+  push ds
+
+  xor dx, dx
+  mov ds, dx        ; ds = 0x0000
+
+  mov dl, [ACTIVE_MODE]
+  cmp dl, 3
+  ja scp_gfx_modes
+
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x31
+  out dx, al
+  mov al, bl
+  out dx, al        ; set overscan colour
+
+end_set_cga_palette:
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop ds
+  pop dx
+  pop bx
+  pop ax
+  iret
+
+scp_gfx_modes:
+  cmp dl, 6
+  jz scp_cga_2_colour_mode
+
+  test bh, 1
+  jz scp_set_background_colour
+
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  and bl, 1         ; two palettes can be chosen
+  mov ah, 0xFE
+  call set_four_colour_palette
+  jmp end_set_cga_palette
+
+scp_set_background_colour:
+  mov bh, bl
+  and bx, 0x0F10    ; bh = background colour, bl = foreground brightness
+  test bh, 0x08
+  jz scp_background_dac_index_in_bh
+  and bh, 0x07
+  or bh, 0x10
+scp_background_dac_index_in_bh:
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0
+  out dx, al
+  mov al, bh
+  out dx, al
+  ;
+  mov ah, 0xEF
+  call set_four_colour_palette
+  jmp end_set_cga_palette
+
+scp_cga_2_colour_mode:
+  and bl, 0x0F      ; the foreground colour
+  test bl, 0x08
+  jz scp_foreground_dac_index_in_bl
+  and bl, 0x07
+  or bl, 0x10
+scp_foreground_dac_index_in_bl:
+  push cx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov cx, 15
+scp_c2cm_set_foreground_colour_loop:
+  mov al, cl
+  out dx, al
+  mov al, bl
+  out dx, al
+  loop scp_c2cm_set_foreground_colour_loop
+  ;
+  pop cx
+  jmp end_set_cga_palette
+
+;
+; Function: set_four_colour_palette
+; Input:
+;   AH = mask to clear the palette bit
+;   BL = the palette bit
+;   DX = 0x3C0 (and port 0x3C0 expects an index)
+; Output:
+;   Port 0x3C0 expects an index
+; Affected registers:
+;   AL, BH
+;
+set_four_colour_palette:
+  mov bh, 1
+sfcp_set_palette_loop:
+  mov al, bh
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  dec dx            ; dx = 0x3C0
+  and al, ah
+  or al, bl
+  out dx, al
+  inc bh
+  cmp bh, 4
+  jb sfcp_set_palette_loop
+  ret
