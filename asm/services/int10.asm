@@ -1,19 +1,20 @@
 ;
 ; int 0x10
 ;
-; loaded at: 0xC000:0x0010
+; loaded at: 0xC000:0x0011
 ;
 
 ; Variable offsets (relative to cs):
 
-CGA_COLOURS = 0
-EGA_COLOURS = 2
-DEFAULT_256_COLOURS = 4
-FONT_8 = 6
-FONT_14 = 8
-FONT_16 = 10
-
-GFX_MODE_BACKGROUND_COLOUR = 0xF
+CGA_COLOURS = 0x00                 ; 2 bytes
+EGA_COLOURS = 0x02                 ; 2 bytes
+DEFAULT_256_COLOURS = 0x04         ; 2 bytes
+FONT_8 = 0x06                      ; 2 bytes
+FONT_14 = 0x08                     ; 2 bytes
+FONT_16 = 0x0A                     ; 2 bytes
+SCREEN_WIDTH_IN_PIXELS = 0x0C      ; 2 bytes
+SCREEN_HEIGHT_IN_PIXELS = 0x0E     ; 2 bytes
+GFX_MODE_BACKGROUND_COLOUR = 0x10  ; 1 byte
 
 ; Offsets relative to segment 0x0000:
 
@@ -277,6 +278,9 @@ svm_write_screen_width:
   stosb             ; storing high byte of CHAR_HEIGHT
   ;
   mov byte ptr [GFX_MODE_BACKGROUND_COLOUR], 0
+  call determine_resolution
+  mov [SCREEN_WIDTH_IN_PIXELS], cx
+  mov [SCREEN_HEIGHT_IN_PIXELS], si
   ;
   mov dx, 0x3C4
   mov al, 0x01
@@ -831,6 +835,68 @@ svp_loop_1:
   out dx, al
   inc ax
   loop svp_loop_1
+  ret
+
+;
+; Function: determine_resolution
+; Input:
+;   BH = value of register 0x3C4, 1
+; Output:
+;   CX = screen width in pixels
+;   SI = screen height in pixels
+; Affected registers:
+;   AX, DX
+;
+determine_resolution:
+  push ds
+  ;
+  xor si, si        ; si = 0
+  mov ds, si        ; ds = 0x0000
+  ;
+  mov ax, [SCREEN_WIDTH]  ; ax = screen width in characters
+  mov cx, 8
+  test bh, 1        ; are characters 8 or 9 pixels wide?
+  jnz dr_char_width_in_cx
+  inc cx
+dr_char_width_in_cx:
+  mul cx            ; ax = screen width in pixels
+  mov cx, ax        ; cx = screen width in pixels
+  ;
+  mov dx, 0x3D4     ; dx = 0x3D4
+  mov al, 7
+  out dx, al        ; selecting overflow register
+  inc dx            ; dx = 0x3D5
+  in al, dx
+  dec dx            ; dx = 0x3D4
+  test al, 0x40     ; vertical end bit 9
+  jz dr_ve_bit_9_set
+  inc si
+dr_ve_bit_9_set:
+  shl si, 1
+  test al, 0x02     ; vertical end bit 8
+  jz dr_ve_bit_8_set
+  or si, 1
+dr_ve_bit_8_set:
+  shl si, 8
+  ;
+  mov ax, 0x0012
+  out dx, al        ; selecting vertical end register
+  inc dx            ; dx = 0x3D5
+  in al, dx
+  dec dx            ; dx = 0x3D4
+  or si, ax
+  inc si            ; si = screen height
+  ;
+  mov al, 9
+  out dx, al        ; selecting maximum scan line register
+  inc dx            ; dx = 0x3D5
+  in al, dx
+  test al, 0x80     ; is scan doubling bit set?
+  jz dr_si_contains_screen_height_in_pixels
+  shr si, 1
+  ;
+dr_si_contains_screen_height_in_pixels:
+  pop ds
   ret
 
 

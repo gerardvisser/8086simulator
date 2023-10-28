@@ -41,17 +41,20 @@ VideoCard::~VideoCard (void) {
 
 /*
 The data is loaded in segment 0xC000.
-Offset 0 - 0x10 are reserved for (word) variables:
-0: dacdata offset CGA colours.
-2: dacdata offset EGA colours.
-4: dacdata offset default 256 colours.
-6: 8x8 font offset
-8: 8x14 font offset
-A: 8x16 font offset
+Offset 0 - 0x11 are reserved for variables:
+0x00: dacdata offset CGA colours.
+0x02: dacdata offset EGA colours.
+0x04: dacdata offset default 256 colours.
+0x06: 8x8 font offset.
+0x08: 8x14 font offset.
+0x0A: 8x16 font offset.
+0x0C: screen width in pixels.
+0x0E: screen height in pixels.
+0x10: graphics mode background colour.
 */
 void VideoCard::loadRom (Memory& memory) {
   Address variableAddress (0xC000, 0);
-  Address dataAddress (0xC000, 0x10);
+  Address dataAddress (0xC000, 0x11);
 
   memory.writeWord (variableAddress, dataAddress.offset);
   variableAddress += 2;
