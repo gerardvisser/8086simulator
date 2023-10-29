@@ -79,6 +79,11 @@ ah_not_A:
   jmp set_cga_palette
 
 ah_not_B:
+  cmp ah, 0xC
+  jnz ah_not_C
+  jmp put_pixel
+
+ah_not_C:
 
   iret
 
@@ -3030,3 +3035,197 @@ sfcp_set_palette_loop:
   cmp bh, 4
   jb sfcp_set_palette_loop
   ret
+
+
+;
+; Put Pixel
+;
+; Input:
+;   AH = 0x0C
+;   AL = colour
+;   BH = page
+;   CX = x-coordinate
+;   DX = y-coordinate
+;
+put_pixel:
+  push ax
+  push bx
+  push cx
+  push dx
+  push di
+  push ds
+
+  xor di, di
+  mov ds, di        ; ds = 0x0000
+
+  mov bl, [ACTIVE_MODE]
+  cmp bl, 3
+  ja pp_gfx_modes
+  jmp end_put_pixel
+
+pp_gfx_modes:
+  cs: cmp cx, [SCREEN_WIDTH_IN_PIXELS]
+  jb pp_check_y_coordinate
+  jmp end_put_pixel ; done if specified x-coordinate is too large
+pp_check_y_coordinate:
+  cs: cmp dx, [SCREEN_HEIGHT_IN_PIXELS]
+  jnb end_put_pixel ; done if specified y-coordinate is too large
+
+  cmp bl, 5
+  ja pp_mode_above_5
+  jmp pp_cga_4_colour_modes
+pp_mode_above_5:
+  cmp bl, 6
+  ja pp_mode_above_6
+  jmp pp_cga_2_colour_mode
+pp_mode_above_6:
+  cmp bl, 0x13
+  jz pp_256_colour_mode
+
+  cmp bl, 0x11
+  jb pp_mode_below_11
+  ;
+  push ax           ; push 'colour'
+  xor di, di        ; di = page offset
+  jmp pp_di_equals_page_offset
+pp_mode_below_11:
+  cmp bl, 0xF
+  jb pp_mode_below_F
+  cmp bh, 2
+  jb pp_valid_page
+  jmp end_put_pixel
+pp_mode_below_F:
+  cmp bl, 0xE
+  jb pp_mode_below_E
+  cmp bh, 4
+  jb pp_valid_page
+  jmp end_put_pixel
+pp_mode_below_E:
+  cmp bh, 7
+  ja end_put_pixel
+pp_valid_page:
+  push ax           ; push 'colour'
+  push dx           ; push 'y-coordinate'
+  ;
+  mov ax, [REGEN_SIZE]
+  shr bx, 8         ; bx = page
+  mul bx            ; ax = offset of top left pixel in page (page offset)
+  mov di, ax        ; di = page offset
+  pop dx            ; dx = y-coordinate
+pp_di_equals_page_offset:
+  mov ax, 0xA000
+  mov ds, ax        ; ds = 0xA000
+  ;
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]
+  shr ax, 3         ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate
+  add di, ax
+  mov bx, cx        ; bx = x-coordinate
+  and cl, 0x7       ; cl = x-coordinate % 8
+  shr bx, 3         ; bx = x-coordinate / 8
+  add di, bx        ; ds:di = pointer to byte to change
+  ;
+  mov ah, 0x80
+  shr ah, cl        ; ah = bit mask of pixel to set
+  mov dx, 0x3CE
+  mov al, 8
+  out dx, ax        ; set bitmask
+  mov ax, 0x0003
+  out dx, ax        ; no rotation, no logical operation
+  mov ax, 0x0205
+  out dx, ax        ; write mode 2
+  ;
+  mov al, [di]      ; loading the latches
+  pop ax            ; al = colour
+  mov [di], al      ; writing pixel
+
+end_put_pixel:
+  pop ds
+  pop di
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+pp_256_colour_mode:
+  push ax           ; push 'colour'
+  mov ax, 0xA000
+  mov ds, ax        ; ds = 0xA000
+  ;
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]  ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate
+  mov di, ax
+  add di, cx        ; ds:di = pointer to byte to change
+  ;
+  pop ax            ; al = colour
+  mov [di], al      ; writing pixel
+  ;
+  jmp end_put_pixel
+
+pp_cga_4_colour_modes:
+  and al, 3         ; only 4 colours available
+  push ax           ; push 'colour'
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  ;
+  xor di, di
+  test dx, 1        ; is y-coordinate odd?
+  jz pp_c4cm_di_contains_base_offset
+  mov di, 0x2000
+pp_c4cm_di_contains_base_offset:
+  shr dx, 1         ; divide y-coordinate by 2
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]
+  shr ax, 2         ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate / 2
+  add di, ax
+  mov bx, cx        ; bx = x-coordinate
+  and cl, 0x3       ; cl = x-coordinate % 4
+  shr bx, 2         ; bx = x-coordinate / 4
+  add di, bx        ; ds:di = pointer to byte to change
+  ;
+  shl cl, 1         ; we want to shift two bits per pixel
+  mov al, 0xC0
+  shr al, cl
+  xor al, 0xFF      ; the bit mask for the pixel to change
+  ;
+  and [di], al
+  pop ax            ; al = colour
+  shl al, 6
+  shr al, cl
+  or [di], al
+  ;
+  jmp end_put_pixel
+
+pp_cga_2_colour_mode:
+  and al, 1         ; only 2 colours available
+  push ax           ; push 'colour'
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  ;
+  xor di, di
+  test dx, 1        ; is y-coordinate odd?
+  jz pp_c2cm_di_contains_base_offset
+  mov di, 0x2000
+pp_c2cm_di_contains_base_offset:
+  shr dx, 1         ; divide y-coordinate by 2
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]
+  shr ax, 3         ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate / 2
+  add di, ax
+  mov bx, cx        ; bx = x-coordinate
+  and cl, 0x7       ; cl = x-coordinate % 8
+  shr bx, 3         ; bx = x-coordinate / 8
+  add di, bx        ; ds:di = pointer to byte to change
+  ;
+  mov al, 0x80
+  shr al, cl
+  xor al, 0xFF      ; the bit mask for the pixel to change
+  ;
+  and [di], al
+  pop ax            ; al = colour
+  shl al, 7
+  shr al, cl
+  or [di], al
+  ;
+  jmp end_put_pixel
