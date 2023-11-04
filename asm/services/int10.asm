@@ -84,6 +84,11 @@ ah_not_B:
   jmp put_pixel
 
 ah_not_C:
+  cmp ah, 0xD
+  jnz ah_not_D
+  jmp get_pixel
+
+ah_not_D:
 
   iret
 
@@ -3229,3 +3234,190 @@ pp_c2cm_di_contains_base_offset:
   or [di], al
   ;
   jmp end_put_pixel
+
+
+;
+; Get Pixel
+;
+; Input:
+;   AH = 0x0D
+;   BH = page
+;   CX = x-coordinate
+;   DX = y-coordinate
+; Output:
+;   AL = colour
+;
+get_pixel:
+  push bx
+  push cx
+  push dx
+  push si
+  push ds
+
+  xor si, si
+  mov ds, si        ; ds = 0x0000
+
+  mov bl, [ACTIVE_MODE]
+  cmp bl, 3
+  ja gp_gfx_modes
+  jmp end_get_pixel
+
+gp_gfx_modes:
+  cs: cmp cx, [SCREEN_WIDTH_IN_PIXELS]
+  jb gp_check_y_coordinate
+  jmp end_get_pixel ; done if specified x-coordinate is too large
+gp_check_y_coordinate:
+  cs: cmp dx, [SCREEN_HEIGHT_IN_PIXELS]
+  jb gp_coordinates_valid
+  jmp end_get_pixel ; done if specified y-coordinate is too large
+
+gp_coordinates_valid:
+  cmp bl, 5
+  ja gp_mode_above_5
+  jmp gp_cga_4_colour_modes
+gp_mode_above_5:
+  cmp bl, 6
+  ja gp_mode_above_6
+  jmp gp_cga_2_colour_mode
+gp_mode_above_6:
+  cmp bl, 0x13
+  jz gp_256_colour_mode
+
+  cmp bl, 0x11
+  jb gp_mode_below_11
+  ;
+  xor si, si        ; si = page offset
+  jmp gp_si_equals_page_offset
+gp_mode_below_11:
+  cmp bl, 0xF
+  jb gp_mode_below_F
+  cmp bh, 2
+  jb gp_valid_page
+  jmp end_get_pixel
+gp_mode_below_F:
+  cmp bl, 0xE
+  jb gp_mode_below_E
+  cmp bh, 4
+  jb gp_valid_page
+  jmp end_get_pixel
+gp_mode_below_E:
+  cmp bh, 7
+  ja end_get_pixel
+gp_valid_page:
+  push dx           ; push 'y-coordinate'
+  ;
+  mov ax, [REGEN_SIZE]
+  shr bx, 8         ; bx = page
+  mul bx            ; ax = offset of top left pixel in page (page offset)
+  mov si, ax        ; si = page offset
+  pop dx            ; dx = y-coordinate
+gp_si_equals_page_offset:
+  mov ax, 0xA000
+  mov ds, ax        ; ds = 0xA000
+  ;
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]
+  shr ax, 3         ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate
+  add si, ax
+  mov bx, cx        ; bx = x-coordinate
+  and cl, 0x7       ; cl = x-coordinate % 8
+  shr bx, 3         ; bx = x-coordinate / 8
+  add si, bx        ; ds:si = pointer to byte to read
+  mov bx, 0x0080    ; bh = 0
+  shr bl, cl        ; bl = bit mask of pixel to read
+  ;
+  mov dx, 0x3CE
+  mov ax, 0x0005
+  out dx, ax        ; read mode 0
+  mov ax, 0x0304
+  ;
+  mov cx, 4
+gp_16cm_append_bit_loop:
+  shl bh, 1
+  out dx, ax        ; select a plane to read
+  test [si], bl
+  jz gp_16cm_bit_appended
+  or bh, 1
+gp_16cm_bit_appended:
+  dec ah            ; ah = next plane to read
+  loop gp_16cm_append_bit_loop
+  ;
+  mov al, bh        ; al = pixel colour
+
+end_get_pixel:
+  mov ah, 0x0D      ; restoring ah
+  pop ds
+  pop si
+  pop dx
+  pop cx
+  pop bx
+  iret
+
+gp_256_colour_mode:
+  mov ax, 0xA000
+  mov ds, ax        ; ds = 0xA000
+  ;
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]  ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate
+  mov si, ax
+  add si, cx        ; ds:si = pointer to byte to read
+  lodsb             ; reading pixel
+  ;
+  jmp end_get_pixel
+
+gp_cga_4_colour_modes:
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  ;
+  xor si, si
+  test dx, 1        ; is y-coordinate odd?
+  jz gp_c4cm_si_contains_base_offset
+  mov si, 0x2000
+gp_c4cm_si_contains_base_offset:
+  shr dx, 1         ; divide y-coordinate by 2
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]
+  shr ax, 2         ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate / 2
+  add si, ax
+  mov bx, cx        ; bx = x-coordinate
+  shr bx, 2         ; bx = x-coordinate / 4
+  add si, bx        ; ds:si = pointer to byte to read
+  ;
+  and cl, 0x3       ; cl = x-coordinate % 4
+  shl cl, 1         ; we want to shift two bits per pixel
+  xor cl, 0xFF      ; cl = -2*(x-coordinate % 4) - 1
+  add cl, 7         ; cl = 6 - 2*(x-coordinate % 4)
+  ;
+  lodsb             ; reading four pixels
+  shr al, cl
+  and al, 3         ; al = pixel colour
+  ;
+  jmp end_get_pixel
+
+gp_cga_2_colour_mode:
+  mov ax, 0xB800
+  mov ds, ax        ; ds = 0xB800
+  ;
+  xor si, si
+  test dx, 1        ; is y-coordinate odd?
+  jz gp_c2cm_si_contains_base_offset
+  mov si, 0x2000
+gp_c2cm_si_contains_base_offset:
+  shr dx, 1         ; divide y-coordinate by 2
+  cs: mov ax, [SCREEN_WIDTH_IN_PIXELS]
+  shr ax, 3         ; ax = screen width in bytes
+  mul dx            ; multiply by y-coordinate / 2
+  add si, ax
+  mov bx, cx        ; bx = x-coordinate
+  shr bx, 3         ; bx = x-coordinate / 8
+  add si, bx        ; ds:si = pointer to byte to read
+  ;
+  and cl, 0x7       ; cl = x-coordinate % 8
+  xor cl, 0xFF      ; cl = -(x-coordinate % 8) - 1
+  add cl, 8         ; cl = 7 - (x-coordinate % 8)
+  ;
+  lodsb             ; reading eight pixels
+  shr al, cl
+  and al, 1         ; al = pixel colour
+  ;
+  jmp end_get_pixel
