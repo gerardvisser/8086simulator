@@ -20,12 +20,12 @@ GFX_MODE_BACKGROUND_COLOUR = 0x10  ; 1 byte
 
 INT_43 = 0x10C              ; 4 bytes
 ACTIVE_MODE = 0x449         ; 1 byte
-SCREEN_WIDTH = 0x44A        ; 2 bytes
+SCREEN_WIDTH = 0x44A        ; 2 bytes, screen width in characters
 REGEN_SIZE = 0x44C          ; 2 bytes
 ACTIVE_PAGE_OFFSET = 0x44E  ; 2 bytes
 CURSOR_LOCATIONS = 0x450    ; 16 bytes
 ACTIVE_PAGE = 0x462         ; 1 byte
-SCREEN_ROWS = 0x484         ; 1 byte
+SCREEN_ROWS = 0x484         ; 1 byte, screen height in text rows minus one
 CHAR_HEIGHT = 0x485         ; 2 bytes
 
 
@@ -89,6 +89,11 @@ ah_not_C:
   jmp get_pixel
 
 ah_not_D:
+  cmp ah, 0xE
+  jnz ah_not_E
+  jmp draw_character_in_teletype_mode
+
+ah_not_E:
 
   iret
 
@@ -3421,3 +3426,153 @@ gp_c2cm_si_contains_base_offset:
   and al, 1         ; al = pixel colour
   ;
   jmp end_get_pixel
+
+
+;
+; Draw Character In Teletype Mode
+;
+; Input:
+;   AH = 0x0E
+;   AL = character code (code page 437)
+;   [BH = page: ignored, active page assumed]
+;   BL = colour
+;
+draw_character_in_teletype_mode:
+  push ax
+  push bx
+  push cx
+  push ds
+  ;
+  xor cx, cx
+  mov ds, cx        ; ds = 0x0000
+  ;
+  mov bh, [ACTIVE_PAGE]  ; bh = active page
+
+  cmp al, 0x0D
+  jnz dcitm_check_for_line_feed
+
+  ; carriage return
+  shr bx, 8         ; bx = active page
+  shl bx, 1         ; bx = 2 * active page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; cl = cursor's x-coordinate, ch = cursor's y-coordinate
+  mov cl, 0
+  jmp dcitm_set_cursor_and_end
+
+dcitm_check_for_line_feed:
+  cmp al, 0x0A
+  jnz dcitm_check_for_bell
+
+  ; line feed
+  shr bx, 8         ; bx = active page
+  shl bx, 1         ; bx = 2 * active page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; cl = cursor's x-coordinate, ch = cursor's y-coordinate
+  jmp dcitm_move_cursor_to_next_line
+
+dcitm_check_for_bell:
+  cmp al, 0x07
+  jnz dcitm_check_for_backspace
+
+  ; bell
+  jmp end_draw_character_in_teletype_mode
+
+dcitm_check_for_backspace:
+  cmp al, 0x08
+  jz dcitm_backspace
+
+  mov cx, 1
+  ;
+  pushf
+  push cs
+  call draw_character
+  ;
+  shr bx, 8         ; bx = active page
+  shl bx, 1         ; bx = 2 * active page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; cl = cursor's x-coordinate, ch = cursor's y-coordinate
+  inc cl            ; increase cursor's x-coordinate
+  cmp cl, [SCREEN_WIDTH]
+  jb dcitm_set_cursor_and_end
+  ;
+  mov cl, 0
+dcitm_move_cursor_to_next_line:
+  cmp ch, [SCREEN_ROWS]
+  jnb dcitm_scroll_needed
+  ;
+  inc ch            ; increase cursor's y-coordinate
+  jmp dcitm_set_cursor_and_end
+dcitm_scroll_needed:
+  push bx
+  push cx
+  push dx
+  ;
+  mov dl, [ACTIVE_MODE]
+  cmp dl, 3
+  ja dcitm_scroll_needed_gfx_mode
+  ;
+  mov al, [SCREEN_ROWS]
+  inc al
+  shl al, 1
+  mul byte ptr [SCREEN_WIDTH]
+  dec ax
+  push ds
+  mov bx, 0xB800
+  mov ds, bx        ; ds = 0xB800
+  mov bx, ax
+  mov al, [bx]
+  pop ds            ; ds = 0x0000
+  mov bh, al
+  jmp dcitm_end_scroll_needed
+dcitm_scroll_needed_gfx_mode:
+  cs: mov bh, [GFX_MODE_BACKGROUND_COLOUR]
+dcitm_end_scroll_needed:
+  mov al, 1
+  xor cx, cx
+  mov dx, 0xFFFF
+  ;
+  pushf
+  push cs
+  call scroll_window_up
+  ;
+  pop dx
+  pop cx
+  pop bx
+
+dcitm_set_cursor_and_end:
+  ; PRE:
+  ;  bx = cursor to change (= 2 * active page)
+  ;  cl = cursor's x-coordinate
+  ;  ch = cursor's y-coordinate
+  mov [bx + CURSOR_LOCATIONS], cx
+
+end_draw_character_in_teletype_mode:
+  pop ds
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+dcitm_backspace:
+  mov ax, bx        ; ah/al = active page/colour
+  shr bx, 8         ; bx = active page
+  shl bx, 1         ; bx = 2 * active page
+  mov cx, [bx + CURSOR_LOCATIONS]  ; cl = cursor's x-coordinate, ch = cursor's y-coordinate
+  jcxz end_draw_character_in_teletype_mode
+  ;
+  cmp cl, 0
+  jnz dcitm_move_cursor_one_position_back
+  ;
+  mov cl, [SCREEN_WIDTH]
+  dec ch
+  ;
+dcitm_move_cursor_one_position_back:
+  dec cl
+  mov [bx + CURSOR_LOCATIONS], cx
+  ;
+  mov bx, ax        ; bh = active page, bl = colour
+  mov cx, 1
+  mov al, 0x20      ; al = space
+  ;
+  pushf
+  push cs
+  call draw_character
+  ;
+  jmp end_draw_character_in_teletype_mode
