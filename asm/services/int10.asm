@@ -94,8 +94,29 @@ ah_not_D:
   jmp draw_character_in_teletype_mode
 
 ah_not_E:
+  cmp ah, 0xF
+  jnz ah_not_F
+  jmp get_video_mode
+
+ah_not_F:
+  cmp ah, 0x10
+  jnz ah_not_10
+  jmp ah_is_10
+
+ah_not_10:
 
   iret
+
+
+ah_is_10:
+  cmp al, 0
+  jnz ah_is_10_al_not_0
+  jmp set_palette_register
+
+ah_is_10_al_not_0:
+
+  iret
+
 
 ;
 ; Set Video Mode
@@ -3576,3 +3597,59 @@ dcitm_move_cursor_one_position_back:
   call draw_character
   ;
   jmp end_draw_character_in_teletype_mode
+
+
+;
+; Get Video Mode
+;
+; Input:
+;   AH = 0x0F
+; Output:
+;   AH = screen width in characters
+;   AL = active video mode
+;   BH = active page
+;
+get_video_mode:
+  push ds
+  ;
+  xor ax, ax
+  mov ds, ax        ; ds = 0x0000
+  ;
+  mov ah, [SCREEN_WIDTH]
+  mov al, [ACTIVE_MODE]
+  mov bh, [ACTIVE_PAGE]
+  ;
+  pop ds
+  iret
+
+
+;
+; Set Palette Register
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x00
+;   BH = colour value (6 bit value)
+;   BL = palette register (0x0 - 0xF)
+;
+set_palette_register:
+  push ax
+  push dx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, bl
+  and al, 0xF
+  out dx, al
+  mov al, bh
+  out dx, al
+  ;
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop ax
+  iret
