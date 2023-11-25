@@ -114,6 +114,21 @@ ah_is_10:
   jmp set_palette_register
 
 ah_is_10_al_not_0:
+  cmp al, 1
+  jnz ah_is_10_al_not_1
+  jmp set_overscan_colour
+
+ah_is_10_al_not_1:
+  cmp al, 2
+  jnz ah_is_10_al_not_2
+  jmp set_palette_and_overscan_colour
+
+ah_is_10_al_not_2:
+  cmp al, 3
+  jnz ah_is_10_al_not_3
+  jmp set_blinking
+
+ah_is_10_al_not_3:
 
   iret
 
@@ -3651,5 +3666,127 @@ set_palette_register:
   in al, dx         ; set 0x3C0 to expect an index
   ;
   pop dx
+  pop ax
+  iret
+
+
+;
+; Set Overscan Colour
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x01
+;   BH = colour value (8 bit value)
+;
+set_overscan_colour:
+  push ax
+  push dx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x31
+  out dx, al
+  mov al, bh
+  out dx, al
+  ;
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop ax
+  iret
+
+
+;
+; Set Palette and Overscan Colour
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x02
+;   ES:DX = pointer to the 17 bytes long colour list
+;
+set_palette_and_overscan_colour:
+  push ax
+  push cx
+  push dx
+  push si
+  push ds
+  ;
+  push es
+  pop ds
+  mov si, dx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  ;
+  mov ah, 0
+  mov cx, 16
+spaoc_set_palette_loop:
+  mov al, ah
+  out dx, al
+  lodsb
+  out dx, al
+  inc ah
+  loop spaoc_set_palette_loop
+  ;
+  mov al, 0x31
+  out dx, al
+  lodsb
+  out dx, al
+  ;
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop ds
+  pop si
+  pop dx
+  pop cx
+  pop ax
+  iret
+
+
+;
+; Set Blinking
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x03
+;   BL = 0: bright background colours
+;        1: blinking characters
+;
+set_blinking:
+  push ax
+  push bx
+  push dx
+  ;
+  and bl, 1
+  shl bl, 3
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  ;
+  mov al, 0x30
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  and al, 0xF7
+  or al, bl
+  dec dx            ; dx = 0x3C0
+  out dx, al
+  ;
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop bx
   pop ax
   iret
