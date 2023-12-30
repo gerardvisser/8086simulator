@@ -129,6 +129,21 @@ ah_is_10_al_not_2:
   jmp set_blinking
 
 ah_is_10_al_not_3:
+  cmp al, 7
+  jnz ah_is_10_al_not_7
+  jmp get_palette_register
+
+ah_is_10_al_not_7:
+  cmp al, 8
+  jnz ah_is_10_al_not_8
+  jmp get_overscan_colour
+
+ah_is_10_al_not_8:
+  cmp al, 9
+  jnz ah_is_10_al_not_9
+  jmp get_palette_and_overscan_colour
+
+ah_is_10_al_not_9:
 
   iret
 
@@ -3715,6 +3730,7 @@ set_palette_and_overscan_colour:
   push si
   push ds
   ;
+  cld
   push es
   pop ds
   mov si, dx
@@ -3788,5 +3804,134 @@ set_blinking:
   ;
   pop dx
   pop bx
+  pop ax
+  iret
+
+
+;
+; Get Palette Register
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x07
+;   BL = palette register (0x0 - 0xF)
+; Output:
+;   BH = colour value (6 bit value)
+;
+get_palette_register:
+  push ax
+  push dx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  ;
+  mov al, bl
+  and al, 0x0F
+  or al, 0x20       ; set PAS bit to prevent screen disabling
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  mov bh, al
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop ax
+  iret
+
+
+;
+; Get Overscan Colour
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x08
+; Output:
+;   BH = colour value (8 bit value)
+;
+get_overscan_colour:
+  push ax
+  push dx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x31
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  mov bh, al
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop ax
+  iret
+
+
+;
+; Get Palette and Overscan Colour
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x09
+;   ES:DX = pointer to a 17 bytes long buffer
+; Output:
+;   The buffer at ES:DX contains the colours
+;
+get_palette_and_overscan_colour:
+  push ax
+  push dx
+  push di
+  ;
+  cld
+  mov di, dx        ; es:di = pointer to the 17 bytes long buffer
+  ;
+  mov ah, 0x20
+gpaoc_get_palette_loop:
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, ah
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  stosb
+  inc ah
+  cmp ah, 0x30
+  jb gpaoc_get_palette_loop
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x31
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  stosb
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop di
+  pop dx
   pop ax
   iret
