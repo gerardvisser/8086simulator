@@ -27,6 +27,7 @@ CURSOR_LOCATIONS = 0x450    ; 16 bytes
 ACTIVE_PAGE = 0x462         ; 1 byte
 SCREEN_ROWS = 0x484         ; 1 byte, screen height in text rows minus one
 CHAR_HEIGHT = 0x485         ; 2 bytes
+VGA_FLAGS = 0x489           ; 1 byte
 
 
   cmp ah, 0
@@ -144,6 +145,11 @@ ah_is_10_al_not_8:
   jmp get_palette_and_overscan_colour
 
 ah_is_10_al_not_9:
+  cmp al, 0x10
+  jnz ah_is_10_al_not_10
+  jmp set_colour_register
+
+ah_is_10_al_not_10:
 
   iret
 
@@ -3935,3 +3941,78 @@ gpaoc_get_palette_loop:
   pop dx
   pop ax
   iret
+
+
+;
+; Set Colour Register
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x10
+;   BX = colour register index
+;   CH = green value (0x00 - 0x3F)
+;   CL = blue value (0x00 - 0x3F)
+;   DH = red value (0x00 - 0x3F)
+;
+set_colour_register:
+  push ax
+  push cx
+  push dx
+  push ds
+  ;
+  xor ax, ax
+  mov ds, ax        ; ds = 0x0000
+  mov ah, dh        ; ah = red value
+  test byte ptr [VGA_FLAGS], 2 ; greyscale conversion enabled?
+  jz scr_load_colour
+  ;
+  call calc_grey_value
+  mov ah, al
+  mov ch, al
+  mov cl, al
+scr_load_colour:
+  mov dx, 0x3C8
+  mov al, bl
+  out dx, al
+  inc dx
+  mov al, ah
+  out dx, al
+  mov al, ch
+  out dx, al
+  mov al, cl
+  out dx, al
+  ;
+  pop ds
+  pop dx
+  pop cx
+  pop ax
+  iret
+
+;
+; Function: calc_grey_value
+; Input:
+;   AH = red value (0x00 - 0x3F)
+;   CH = green value (0x00 - 0x3F)
+;   CL = blue value (0x00 - 0x3F)
+; Output:
+;   AL = grey value (0x00 - 0x3F)
+; Affected registers:
+;   AH, DX
+;
+calc_grey_value:
+  mov al, 30
+  mul ah
+  mov dx, ax
+  mov al, 59
+  mul ch
+  add dx, ax
+  mov al, 11
+  mul cl
+  add ax, dx
+  mov dl, 100
+  div dl
+  cmp ah, 50
+  jb end_calc_grey_value
+  inc al
+end_calc_grey_value:
+  ret
