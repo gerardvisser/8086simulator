@@ -150,6 +150,16 @@ ah_is_10_al_not_9:
   jmp set_colour_register
 
 ah_is_10_al_not_10:
+  cmp al, 0x12
+  jnz ah_is_10_al_not_12
+  jmp set_one_or_more_colour_registers
+
+ah_is_10_al_not_12:
+  cmp al, 0x13
+  jnz ah_is_10_al_not_13
+  jmp set_colour_page_or_mode
+
+ah_is_10_al_not_13:
 
   iret
 
@@ -4016,3 +4026,132 @@ calc_grey_value:
   inc al
 end_calc_grey_value:
   ret
+
+
+;
+; Set One Or More Colour Registers
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x12
+;   BX = first colour register index
+;   CX = number of colour registers to set
+;   ES:DX = pointer to colour table, three bytes (red, green, blue) per colour register
+;
+set_one_or_more_colour_registers:
+  push ax
+  push cx
+  push dx
+  push si
+  push ds
+  ;
+  cld
+  mov si, dx        ; si = offset of colour table
+  mov dx, 0x3C8     ; dx = 0x3C8
+  mov al, bl
+  out dx, al
+  xor ax, ax
+  mov ds, ax        ; ds = 0x0000
+  test byte ptr [VGA_FLAGS], 2 ; greyscale conversion enabled?
+  jz soomcr_load_colours
+  ;
+  push es
+  pop ds            ; ds:si = pointer to colour table
+soomcr_load_greyscale_colour_loop:
+  push cx
+  lodsb
+  mov ah, al
+  lodsb
+  mov ch, al
+  lodsb
+  mov cl, al
+  call calc_grey_value
+  mov dx, 0x3C9
+  out dx, al
+  out dx, al
+  out dx, al
+  pop cx
+  loop soomcr_load_greyscale_colour_loop
+  jmp end_set_one_or_more_colour_registers
+  ;
+soomcr_load_colours:
+  push es
+  pop ds            ; ds:si = pointer to colour table
+  inc dx            ; dx = 0x3C9
+soomcr_load_colour_loop:
+  lodsb
+  out dx, al
+  lodsb
+  out dx, al
+  lodsb
+  out dx, al
+  loop soomcr_load_colour_loop
+  ;
+end_set_one_or_more_colour_registers:
+  pop ds
+  pop si
+  pop dx
+  pop cx
+  pop ax
+  iret
+
+
+;
+; Set Colour Page Or Mode
+;
+; Determines which colour registers the 16 palette registers can refer to.
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x13
+;   BL = 0 (set paging mode)
+;        1 (set page)
+;   BH = (when BL = 0) 0: 4 pages of 64 colour registers
+;                      1: 16 pages of 16 colour registers
+;      = (when BL = 1) page to select
+;
+set_colour_page_or_mode:
+  push ax
+  push dx
+  ;
+  mov ah, bh        ; ah = value to set
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x30
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx         ; al = value of attribute mode control register (0x3C0, 0x10)
+  ;
+  test bl, 1
+  jnz scpom_set_page
+
+  dec dx            ; dx = 0x3C0
+  shl ah, 7
+  and al, 0x7F
+  or al, ah
+  out dx, al
+  jmp end_set_colour_page_or_mode
+
+scpom_set_page:
+  test al, 0x80
+  jnz scpom_page_in_ah
+  shl ah, 2
+scpom_page_in_ah:
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x34
+  out dx, al
+  mov al, ah
+  out dx, al
+
+end_set_colour_page_or_mode:
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop ax
+  iret
