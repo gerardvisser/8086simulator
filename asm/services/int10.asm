@@ -160,7 +160,31 @@ ah_is_10_al_not_12:
   jmp set_colour_page_or_mode
 
 ah_is_10_al_not_13:
+  cmp al, 0x15
+  jnz ah_is_10_al_not_15
+  jmp get_colour_register
 
+ah_is_10_al_not_15:
+  cmp al, 0x17
+  jnz ah_is_10_al_not_17
+  jmp get_one_or_more_colour_registers
+
+ah_is_10_al_not_17:
+  cmp al, 0x1A
+  jnz ah_is_10_al_not_1A
+  jmp get_colour_page_and_mode
+
+ah_is_10_al_not_1A:
+  cmp al, 0x1B
+  jnz ah_is_10_al_not_1B
+  jmp convert_to_greyscale
+
+ah_is_10_al_not_1B:
+  cmp al, 0x80
+  jnz ah_is_10_al_not_80
+  jmp set_gfx_mode_background_colour
+
+ah_is_10_al_not_80:
   iret
 
 
@@ -4153,5 +4177,217 @@ end_set_colour_page_or_mode:
   in al, dx         ; set 0x3C0 to expect an index
   ;
   pop dx
+  pop ax
+  iret
+
+
+;
+; Get Colour Register
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x15
+;   BX = colour register index
+; Output:
+;   CH = green value (0x00 - 0x3F)
+;   CL = blue value (0x00 - 0x3F)
+;   DH = red value (0x00 - 0x3F)
+;
+get_colour_register:
+  push ax
+  mov ah, dl
+  ;
+  mov dx, 0x3C7
+  mov al, bl
+  out dx, al
+  mov dx, 0x3C9
+  in al, dx
+  xchg al, ah
+  push ax
+  in al, dx
+  mov ch, al
+  in al, dx
+  mov cl, al
+  ;
+  pop dx
+  pop ax
+  iret
+
+
+;
+; Get One Or More Colour Registers
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x17
+;   BX = first colour register index
+;   CX = number of colour registers to get
+;   ES:DX = pointer to a buffer where the colour components should be stored
+; Output:
+;   The buffer at ES:DX contains the red, green and blue components of the specified
+;   colour registers.
+;
+get_one_or_more_colour_registers:
+  push ax
+  push cx
+  push dx
+  push di
+  ;
+  cld
+  mov di, dx        ; es:di = pointer to destination buffer
+  mov ax, 3         ; three components per colour
+  mul cx
+  mov cx, ax
+  ;
+  mov dx, 0x3C7
+  mov al, bl
+  out dx, al
+  mov dx, 0x3C9
+goomcr_store_colour_components_loop:
+  in al, dx
+  stosb
+  loop goomcr_store_colour_components_loop
+  ;
+  pop di
+  pop dx
+  pop cx
+  pop ax
+  iret
+
+
+;
+; Get Colour Page And Mode
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x1A
+; Output:
+;   BH = active colour page
+;   BL = paging mode:
+;        0: 4 pages of 64 colour registers
+;        1: 16 pages of 16 colour registers
+;
+get_colour_page_and_mode:
+  push ax
+  push dx
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x30
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  shr al, 7
+  mov bl, al
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x34
+  out dx, al
+  inc dx            ; dx = 0x3C1
+  in al, dx
+  test bl, 1
+  jnz gcpam_page_in_al
+  shr al, 2
+gcpam_page_in_al:
+  mov bh, al
+  ;
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  mov dx, 0x3C0     ; dx = 0x3C0
+  mov al, 0x20
+  out dx, al
+  mov dx, 0x3DA
+  in al, dx         ; set 0x3C0 to expect an index
+  ;
+  pop dx
+  pop ax
+  iret
+
+
+;
+; Convert To Greyscale
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x1B
+;   BX = first colour register index
+;   CX = number of colour registers to convert
+;
+convert_to_greyscale:
+  push ax
+  push bx
+  push cx
+  push dx
+  ;
+ctg_conversion_loop:
+  push cx
+  mov dx, 0x3C7
+  mov al, bl
+  out dx, al
+  mov dx, 0x3C9
+  in al, dx
+  mov ah, al        ; ah = red component
+  in al, dx
+  mov ch, al        ; ch = green component
+  in al, dx
+  mov cl, al        ; cl = blue component
+  dec dx
+  mov al, bl
+  out dx, al
+  call calc_grey_value
+  mov dx, 0x3C9
+  out dx, al
+  out dx, al
+  out dx, al
+  inc bx
+  pop cx
+  loop ctg_conversion_loop
+  ;
+  pop dx
+  pop cx
+  pop bx
+  pop ax
+  iret
+
+
+;
+; Set GFX Mode Background Colour
+;
+; Input:
+;   AH = 0x10
+;   AL = 0x80
+;   BL = colour
+;
+set_gfx_mode_background_colour:
+  push ax
+  push ds
+  ;
+  xor ax, ax
+  mov ds, ax        ; ds = 0x0000
+  mov al, [ACTIVE_MODE]
+  mov ah, bl        ; ah = colour
+  cmp al, 4
+  jb end_set_gfx_mode_background_colour
+  cmp al, 5
+  ja sgmbc_mode_above_5
+  and ah, 3
+  jmp sgmbc_store_colour
+sgmbc_mode_above_5:
+  cmp al, 6
+  ja sgmbc_mode_above_6
+  and ah, 1
+  jmp sgmbc_store_colour
+sgmbc_mode_above_6:
+  cmp al, 0x13
+  jz sgmbc_store_colour
+  and ah, 0xF
+sgmbc_store_colour:
+  cs: mov [GFX_MODE_BACKGROUND_COLOUR], ah
+  ;
+end_set_gfx_mode_background_colour:
+  pop ds
   pop ax
   iret
