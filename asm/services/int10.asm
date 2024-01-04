@@ -18,6 +18,7 @@ GFX_MODE_BACKGROUND_COLOUR = 0x10  ; 1 byte
 
 ; Offsets relative to segment 0x0000:
 
+INT_1F = 0x07C              ; 4 bytes
 INT_43 = 0x10C              ; 4 bytes
 ACTIVE_MODE = 0x449         ; 1 byte
 SCREEN_WIDTH = 0x44A        ; 2 bytes, screen width in characters
@@ -105,6 +106,16 @@ ah_not_F:
   jmp ah_is_10
 
 ah_not_10:
+  cmp ah, 0x11
+  jnz ah_not_11
+  jmp ah_is_11
+
+ah_not_11:
+  cmp ah, 0x12
+  jnz ah_not_12
+  jmp ah_is_12
+
+ah_not_12:
 
   iret
 
@@ -185,6 +196,24 @@ ah_is_10_al_not_1B:
   jmp set_gfx_mode_background_colour
 
 ah_is_10_al_not_80:
+  iret
+
+
+ah_is_11:
+  cmp al, 0x30
+  jnz ah_is_11_al_not_30
+  jmp get_font_info
+
+ah_is_11_al_not_30:
+  iret
+
+
+ah_is_12:
+  cmp bl, 0x33
+  jnz ah_is_12_bl_not_33
+  jmp enable_conversion_to_greyscale
+
+ah_is_12_bl_not_33:
   iret
 
 
@@ -343,6 +372,13 @@ end_set_video_mode:
   push cs
   pop ax
   stosw
+  mov di, INT_1F
+  mov ax, [FONT_8]
+  add ax, 8 * 0x80
+  stosw
+  push cs
+  pop ax
+  stosw
   ;
   mov di, ACTIVE_MODE
   mov al, bl
@@ -390,7 +426,17 @@ svm_write_screen_width:
   ;
   mov dx, 0x3C4
   mov al, 0x01
-  mov ah, bh
+  mov ah, bh        ; ah = value for 0x3C4, 1: to enable video and set 8/9 pixels wide characters
+  ;
+  es: test byte ptr [VGA_FLAGS], 2 ; greyscale conversion enabled?
+  jz svm_enable_video
+  xor bx, bx
+  mov cx, 0x100
+  pushf
+  push cs
+  call convert_to_greyscale
+  ;
+svm_enable_video:
   out dx, ax        ; enable video
 
   pop ds
@@ -4390,4 +4436,110 @@ sgmbc_store_colour:
 end_set_gfx_mode_background_colour:
   pop ds
   pop ax
+  iret
+
+
+;
+; Get Font Info
+;
+; Input:
+;   AH = 0x11
+;   AL = 0x30
+;   BH = font to return pointer for:
+;        0: current value at int 0x1F
+;        1: current value at int 0x43
+;        2: default 8 x 14 font
+;        3: default 8 x 8 font (characters 0x00 - 0x7F)
+;        4: default 8 x 8 font (characters 0x80 - 0xFF)
+;        5: 9 x 14 font (not available)
+;        6: default 8 x 16 font
+;        7: 9 x 16 font (not available)
+; Output:
+;   CX = character height or bytes per character for the currently active font
+;   DL = screen height in text rows minus one for the current video mode
+;   ES:BP = pointer to the font table
+;
+get_font_info:
+  push ax
+  push ds
+  ;
+  xor ax, ax
+  mov ds, ax        ; ds = 0x0000
+  mov cx, [CHAR_HEIGHT]
+  mov dl, [SCREEN_ROWS]
+  cmp bh, 0
+  ja gfi_bh_above_0
+  mov bp, [INT_1F]
+  mov es, [INT_1F + 2]
+  jmp end_get_font_info
+gfi_bh_above_0:
+  cmp bh, 1
+  ja gfi_bh_above_1
+  mov bp, [INT_43]
+  mov es, [INT_43 + 2]
+  jmp end_get_font_info
+gfi_bh_above_1:
+  cmp bh, 2
+  ja gfi_bh_above_2
+  cs: mov bp, [FONT_14]
+  push cs
+  pop es
+  jmp end_get_font_info
+gfi_bh_above_2:
+  cmp bh, 3
+  ja gfi_bh_above_3
+  cs: mov bp, [FONT_8]
+  push cs
+  pop es
+  jmp end_get_font_info
+gfi_bh_above_3:
+  cmp bh, 4
+  ja gfi_bh_above_4
+  cs: mov bp, [FONT_8]
+  add bp, 8 * 0x80
+  push cs
+  pop es
+  jmp end_get_font_info
+gfi_bh_above_4:
+  cmp bh, 5
+  jz end_get_font_info
+  cmp bh, 6
+  ja end_get_font_info
+  cs: mov bp, [FONT_16]
+  push cs
+  pop es
+  ;
+end_get_font_info:
+  pop ds
+  pop ax
+  iret
+
+
+;
+; Enable Conversion To Greyscale
+;
+; Input:
+;   AH = 0x12
+;   BL = 0x33
+;   AL = 0: enable conversion
+;        1: disable conversion
+; Output:
+;   AL = 0x12
+;
+enable_conversion_to_greyscale:
+  push bx
+  push ds
+  ;
+  xor bx, bx
+  mov ds, bx        ; ds = 0x0000
+  mov bl, al
+  shl bl, 1
+  and bl, 2
+  xor bl, 2
+  and byte ptr [VGA_FLAGS], 0xFD
+  or [VGA_FLAGS], bl
+  mov al, 0x12
+  ;
+  pop ds
+  pop bx
   iret
