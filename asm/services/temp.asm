@@ -126,6 +126,7 @@ dsitm_gfx_modes:
   pop ds            ; ds:si = pointer to the string to draw
   mov ax, 0xB800
   mov es, ax        ; es:di = top of screen
+  and bl, 3         ; colour should be 0, 1, 2 or 3
   call draw_string_in_teletype_mode_gfx
   jmp dsitm_write_cursor_if_needed_and_end
 
@@ -142,6 +143,7 @@ dsitm_mode_above_5:
   pop ds            ; ds:si = pointer to the string to draw
   mov ax, 0xB800
   mov es, ax        ; es:di = top of screen
+  and bl, 1         ; colour should be 0 or 1
   call draw_string_in_teletype_mode_gfx
   jmp dsitm_write_cursor_if_needed_and_end
 
@@ -246,10 +248,10 @@ end_draw_string_in_teletype_mode:
 ; Output:
 ;   -
 ; Affected registers:
-;   AX, DX
+;   AX, CX, DX
 ;
 draw_string_in_teletype_mode_gfx:
-  push bx
+  push bx ;TODO: nodig? je kunt bx ook gewoon niet aanpassen
   ;
   call dsitm_calc_string_destination_address
   test bh, 2        ; what data is in the string?
@@ -257,7 +259,7 @@ draw_string_in_teletype_mode_gfx:
   call ...
   jmp end_draw_string_in_teletype_mode_gfx
 dsitmg_chars_only:
-  call ...
+  call draw_string_in_teletype_mode_gfx_chars_only
 end_draw_string_in_teletype_mode_gfx:
   pop bx
   ret
@@ -293,7 +295,7 @@ end_draw_string_in_teletype_mode_gfx:
 ;   AX, DX
 ;
 draw_string_in_teletype_mode_text:
-  push bx
+  push bx ;TODO: nodig? je kunt bx ook gewoon niet aanpassen
   ;
   call dsitm_calc_string_destination_address
 
@@ -326,33 +328,90 @@ dsitm_calc_string_destination_address:
   add di, ax        ; es:di = position where to draw the string
   ret
 
+;
+; Function: draw_string_in_teletype_mode_gfx_chars_only
+; Input:
+;   BL = draw colour
+;   CX = length of the string
+;   DS:SI = pointer to the string to draw
+;   ES:DI = position where to draw the string
+;
+;   set/reset register filled with draw colour
+;   latches should be filled with background colour
+;   write mode 3
+; Output:
+; Affected registers:
+;   AL, CX
+;
+draw_string_in_teletype_mode_gfx_chars_only:
+  lodsb             ; load a character in al
+  ;
+  cmp al, 0x0D
+  jnz dsitmgco_check_for_line_feed
+  call cursor_carriage_return
+  jmp dsitmgco_continue_loop
+dsitmgco_check_for_line_feed:
+  cmp al, 0x0A
+  jnz dsitmgco_check_for_bell
+  call cursor_line_feed
+  jmp dsitmgco_continue_loop
+dsitmgco_check_for_bell:
+  cmp al, 0x07
+  jz dsitmgco_continue_loop
+  ;
+  cmp al, 0x08
+  jnz dsitmgco_other_character
+  call cursor_decrease
+  mov al, 0x20
+  call [bp + DSITM_DRAW_CHAR]
+  jmp dsitmgco_continue_loop
+dsitmgco_other_character:
+  call [bp + DSITM_DRAW_CHAR]
+  call cursor_increase
+dsitmgco_continue_loop:
+  loop draw_string_in_teletype_mode_gfx_chars_only
+  ret
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;
 ; Function: draw_character_16cm
 ; Input:
-;   CX = character height
-;   DX = screen width - 1
-;   DS:SI = position in font table
+;   AL = character to draw
 ;   ES:DI = position where to write character
 ;   set/reset register filled with draw colour
 ;   latches should be filled with background colour
 ;   write mode 3
 ; Output:
 ; Affected registers:
-;   SI
+;   -
 ;
 draw_character_16cm:
+  push ax
   push cx
+  push dx
+  push si
   push di
+  push ds
   ;
+  mov cx, [bp + DSITM_CHAR_HEIGHT]  ; cx = cl = character height
+  mul cl            ; ax = offset in font table
+  mov si, [bp + DSITM_FONT_TABLE]
+  add si, ax
+  mov ds, [bp + DSITM_FONT_TABLE + 2]  ; ds:si = position in font table
+  mov dx, [bp + DSITM_SCREEN_WIDTH_BYTES]
+  dec dx            ; dx = screen width - 1
 dc16cm_loop:
   movsb
   add di, dx
   loop dc16cm_loop
   ;
+  pop ds
   pop di
+  pop si
+  pop dx
   pop cx
+  pop ax
   ret
 
 
