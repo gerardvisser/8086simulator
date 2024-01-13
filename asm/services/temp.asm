@@ -1,3 +1,8 @@
+
+
+scroll_window_up: ;tijdelijk
+
+
 SCREEN_WIDTH_IN_PIXELS = 0x0C      ; 2 bytes
 SCREEN_HEIGHT_IN_PIXELS = 0x0E     ; 2 bytes
 GFX_MODE_BACKGROUND_COLOUR = 0x10  ; 1 byte
@@ -47,8 +52,9 @@ DSITM_CHAR_WIDTH = 8           ; 2 bytes: character width in bytes
 DSITM_SCREEN_WIDTH_BYTES = 10  ; 2 bytes: screen width in bytes = character width in bytes * screen width in characters
 DSITM_LINE_HEIGHT = 12         ; 2 bytes: line height = character height * screen width in bytes
 DSITM_DRAW_CHAR = 14           ; 2 bytes: offset of a function that draws a single character
-DSITM_FONT_TABLE = 16          ; 4 bytes: pointer to a font table
-DSITM_STACK_FRAME_SIZE = 20
+DSITM_SET_COLOUR = 16          ; 2 bytes: offset of a function that sets the foreground colour
+DSITM_FONT_TABLE = 18          ; 4 bytes: pointer to a font table
+DSITM_STACK_FRAME_SIZE = 22
 
 DSITM_16CM_BACKGROUND_COLOUR = 0xFFF0
 
@@ -73,13 +79,20 @@ draw_string_in_teletype_mode:
   mov bh, al        ; bh = write mode
   ;
   cmp dh, [SCREEN_ROWS]
-  ja end_draw_string_in_teletype_mode
+  jna dsitm_check_cursor_x
+  jmp end_draw_string_in_teletype_mode
+dsitm_check_cursor_x:
   cmp dl, [SCREEN_WIDTH]
-  jae end_draw_string_in_teletype_mode
+  jb dsitm_cursor_within_bounds
+  jmp end_draw_string_in_teletype_mode
+dsitm_cursor_within_bounds:
   mov [bp + DSITM_CURSOR], dx
   mov di, [ACTIVE_PAGE_OFFSET]  ; di = offset of top of screen
-  jcxz dsitm_write_cursor_if_needed_and_end
+  cmp cx, 0
+  jnz dsitm_string_length_positive
+  jmp dsitm_write_cursor_if_needed_and_end
   ;
+dsitm_string_length_positive:
   mov ax, [SCREEN_WIDTH]  ; ax = screen width in characters
   mov [bp + DSITM_SCREEN_WIDTH_CHARS], ax
   mov dl, [SCREEN_ROWS]
@@ -115,13 +128,13 @@ dsitm_gfx_modes:
   ;
   cmp dl, 5
   ja dsitm_mode_above_5
-  shr word [bp + DSITM_CHAR_HEIGHT], 1  ; because of cga addressing
   mov word ptr [bp + DSITM_CHAR_WIDTH], 2
   shl ax, 1         ; ax = screen width in bytes
   mov [bp + DSITM_SCREEN_WIDTH_BYTES], ax
   shl ax, 2         ; ax = line height
   mov [bp + DSITM_LINE_HEIGHT], ax
-  mov [bp + DSITM_DRAW_CHAR], TODO
+  mov word ptr [bp + DSITM_DRAW_CHAR], draw_character_c4cm
+  mov word ptr [bp + DSITM_SET_COLOUR], dsitm_set_colour_c4cm
   push es
   pop ds            ; ds:si = pointer to the string to draw
   mov ax, 0xB800
@@ -133,12 +146,12 @@ dsitm_gfx_modes:
 dsitm_mode_above_5:
   cmp dl, 6
   ja dsitm_mode_above_6
-  shr word [bp + DSITM_CHAR_HEIGHT], 1  ; because of cga addressing
   mov word ptr [bp + DSITM_CHAR_WIDTH], 1
   mov [bp + DSITM_SCREEN_WIDTH_BYTES], ax
   shl ax, 2         ; ax = line height
   mov [bp + DSITM_LINE_HEIGHT], ax
-  mov [bp + DSITM_DRAW_CHAR], TODO
+  mov word ptr [bp + DSITM_DRAW_CHAR], draw_character_c2cm
+  mov word ptr [bp + DSITM_SET_COLOUR], dsitm_set_colour_c2cm
   push es
   pop ds            ; ds:si = pointer to the string to draw
   mov ax, 0xB800
@@ -155,7 +168,8 @@ dsitm_mode_above_6:
   mov [bp + DSITM_SCREEN_WIDTH_BYTES], ax
   shl ax, 3         ; ax = line height
   mov [bp + DSITM_LINE_HEIGHT], ax
-  mov [bp + DSITM_DRAW_CHAR], TODO
+  mov word ptr [bp + DSITM_DRAW_CHAR], draw_character_256cm
+  mov word ptr [bp + DSITM_SET_COLOUR], dsitm_set_colour_256cm
   push es
   pop ds            ; ds:si = pointer to the string to draw
   mov ax, 0xA000
@@ -166,9 +180,10 @@ dsitm_mode_above_6:
 dsitm_planar_mode:
   mov word ptr [bp + DSITM_CHAR_WIDTH], 1
   mov [bp + DSITM_SCREEN_WIDTH_BYTES], ax
-  mul [bp + DSITM_CHAR_HEIGHT]  ; ax = line height
+  mul word ptr [bp + DSITM_CHAR_HEIGHT]  ; ax = line height
   mov [bp + DSITM_LINE_HEIGHT], ax
-  mov [bp + DSITM_DRAW_CHAR], TODO
+  mov word ptr [bp + DSITM_DRAW_CHAR], draw_character_16cm
+  mov word ptr [bp + DSITM_SET_COLOUR], dsitm_set_colour_16cm
   push es
   pop ds            ; ds:si = pointer to the string to draw
   mov ax, 0xA000
@@ -217,6 +232,66 @@ end_draw_string_in_teletype_mode:
   iret
 
 ;
+; Function: dsitm_set_colour_16cm
+; Input:
+;   AH = colour
+; Output:
+;   set/reset register filled with draw colour
+; Affected registers:
+;   DX
+;
+dsitm_set_colour_16cm:
+  push ax
+  ;
+  mov dx, 0x3CE
+  mov al, 0
+  out dx, ax        ; set/reset register filled with draw colour
+  ;
+  pop ax
+  ret
+
+;
+; Function: dsitm_set_colour_256cm
+; Input:
+;   AH = colour
+; Output:
+;   BL = colour
+; Affected registers:
+;   -
+;
+dsitm_set_colour_256cm:
+  mov bl, ah
+  ret
+
+;
+; Function: dsitm_set_colour_c2cm
+; Input:
+;   AH = colour
+; Output:
+;   BL = colour
+; Affected registers:
+;   -
+;
+dsitm_set_colour_c2cm:
+  mov bl, ah
+  and bl, 1
+  ret
+
+;
+; Function: dsitm_set_colour_c4cm
+; Input:
+;   AH = colour
+; Output:
+;   BL = colour
+; Affected registers:
+;   -
+;
+dsitm_set_colour_c4cm:
+  mov bl, ah
+  and bl, 3
+  ret
+
+;
 ; Function: draw_string_in_teletype_mode_gfx
 ; Input:
 ;   BH = write mode:
@@ -244,24 +319,21 @@ end_draw_string_in_teletype_mode:
 ;
 ;   SS:BP+DSITM_CHAR_HEIGHT = character height
 ;   SS:BP+DSITM_DRAW_CHAR = offset of a function that draws a single character
+;   SS:BP+DSITM_SET_COLOUR = offset of a function that sets the foreground colour
 ;   SS:BP+DSITM_FONT_TABLE = pointer to a font table
 ; Output:
 ;   -
 ; Affected registers:
-;   AX, CX, DX
+;   AX, CX, DX, BL
 ;
 draw_string_in_teletype_mode_gfx:
-  push bx ;TODO: nodig? je kunt bx ook gewoon niet aanpassen
-  ;
   call dsitm_calc_string_destination_address
   test bh, 2        ; what data is in the string?
   jz dsitmg_chars_only
-  call ...
-  jmp end_draw_string_in_teletype_mode_gfx
+  call draw_string_in_teletype_mode_gfx_chars_and_attrs
+  ret
 dsitmg_chars_only:
   call draw_string_in_teletype_mode_gfx_chars_only
-end_draw_string_in_teletype_mode_gfx:
-  pop bx
   ret
 
 ;
@@ -295,23 +367,20 @@ end_draw_string_in_teletype_mode_gfx:
 ;   AX, DX
 ;
 draw_string_in_teletype_mode_text:
-  push bx ;TODO: nodig? je kunt bx ook gewoon niet aanpassen
-  ;
   call dsitm_calc_string_destination_address
-
-  ;
-  pop bx
+  test bh, 2        ; what data is in the string?
+  jz dsitmt_chars_only
+  call draw_string_in_teletype_mode_text_chars_and_attrs
+  ret
+dsitmt_chars_only:
+  mov ah, bl        ; ah = attribute
+  call draw_string_in_teletype_mode_text_chars_only
   ret
 
 ;
 ; Function: dsitm_calc_string_destination_address
 ; Input:
 ;   ES:DI = top of screen
-;
-;   SS:BP+DSITM_CURSOR = cursor's x-coordinate
-;   SS:BP+DSITM_CURSOR+1 = cursor's y-coordinate
-;   SS:BP+DSITM_CHAR_WIDTH = character width in bytes
-;   SS:BP+DSITM_LINE_HEIGHT = line height = character height * screen width in bytes
 ; Output:
 ;   ES:DI = position where to draw the string
 ; Affected registers:
@@ -329,6 +398,51 @@ dsitm_calc_string_destination_address:
   ret
 
 ;
+; Function: draw_string_in_teletype_mode_gfx_chars_and_attrs
+; Input:
+;   CX = length of the string
+;   DS:SI = pointer to the string to draw
+;   ES:DI = position where to draw the string
+;
+;   latches should be filled with background colour
+;   write mode 3
+; Output:
+;   -
+; Affected registers:
+;   AX, CX, DX, BL
+;
+draw_string_in_teletype_mode_gfx_chars_and_attrs:
+  lodsw             ; load a character in al and colour in ah
+  ;
+  cmp al, 0x0D
+  jnz dsitmgcaa_check_for_line_feed
+  call cursor_carriage_return
+  jmp dsitmgcaa_continue_loop
+dsitmgcaa_check_for_line_feed:
+  cmp al, 0x0A
+  jnz dsitmgcaa_check_for_bell
+  call cursor_line_feed
+  jmp dsitmgcaa_continue_loop
+dsitmgcaa_check_for_bell:
+  cmp al, 0x07
+  jz dsitmgcaa_continue_loop
+  ;
+  cmp al, 0x08
+  jnz dsitmgcaa_other_character
+  call cursor_decrease
+  jc dsitmgcaa_continue_loop
+  mov al, 0x20
+  call [bp + DSITM_DRAW_CHAR]
+  jmp dsitmgcaa_continue_loop
+dsitmgcaa_other_character:
+  call [bp + DSITM_SET_COLOUR]
+  call [bp + DSITM_DRAW_CHAR]
+  call cursor_increase
+dsitmgcaa_continue_loop:
+  loop draw_string_in_teletype_mode_gfx_chars_and_attrs
+  ret
+
+;
 ; Function: draw_string_in_teletype_mode_gfx_chars_only
 ; Input:
 ;   BL = draw colour
@@ -340,8 +454,9 @@ dsitm_calc_string_destination_address:
 ;   latches should be filled with background colour
 ;   write mode 3
 ; Output:
+;   -
 ; Affected registers:
-;   AL, CX
+;   AX, CX, DX
 ;
 draw_string_in_teletype_mode_gfx_chars_only:
   lodsb             ; load a character in al
@@ -362,6 +477,7 @@ dsitmgco_check_for_bell:
   cmp al, 0x08
   jnz dsitmgco_other_character
   call cursor_decrease
+  jc dsitmgco_continue_loop
   mov al, 0x20
   call [bp + DSITM_DRAW_CHAR]
   jmp dsitmgco_continue_loop
@@ -370,6 +486,89 @@ dsitmgco_other_character:
   call cursor_increase
 dsitmgco_continue_loop:
   loop draw_string_in_teletype_mode_gfx_chars_only
+  ret
+
+;
+; Function: draw_string_in_teletype_mode_text_chars_and_attrs
+; Input:
+;   CX = length of the string
+;   DS:SI = pointer to the string to draw
+;   ES:DI = position where to draw the string
+; Output:
+;   -
+; Affected registers:
+;   AX, CX
+;
+draw_string_in_teletype_mode_text_chars_and_attrs:
+  lodsw             ; load a character in al and attribute in ah
+  ;
+  cmp al, 0x0D
+  jnz dsitmtcaa_check_for_line_feed
+  call cursor_carriage_return
+  jmp dsitmtcaa_continue_loop
+dsitmtcaa_check_for_line_feed:
+  cmp al, 0x0A
+  jnz dsitmtcaa_check_for_bell
+  call cursor_line_feed
+  jmp dsitmtcaa_continue_loop
+dsitmtcaa_check_for_bell:
+  cmp al, 0x07
+  jz dsitmtcaa_continue_loop
+  ;
+  cmp al, 0x08
+  jnz dsitmtcaa_other_character
+  call cursor_decrease
+  jc dsitmtcaa_continue_loop
+  mov al, 0x20
+  es: mov [di], ax
+  jmp dsitmtcaa_continue_loop
+dsitmtcaa_other_character:
+  es: mov [di], ax
+  call cursor_increase
+dsitmtcaa_continue_loop:
+  loop draw_string_in_teletype_mode_text_chars_and_attrs
+  ret
+
+;
+; Function: draw_string_in_teletype_mode_text_chars_only
+; Input:
+;   AH = attribute
+;   CX = length of the string
+;   DS:SI = pointer to the string to draw
+;   ES:DI = position where to draw the string
+; Output:
+;   -
+; Affected registers:
+;   AX, CX
+;
+draw_string_in_teletype_mode_text_chars_only:
+  lodsb             ; load a character in al
+  ;
+  cmp al, 0x0D
+  jnz dsitmtco_check_for_line_feed
+  call cursor_carriage_return
+  jmp dsitmtco_continue_loop
+dsitmtco_check_for_line_feed:
+  cmp al, 0x0A
+  jnz dsitmtco_check_for_bell
+  call cursor_line_feed
+  jmp dsitmtco_continue_loop
+dsitmtco_check_for_bell:
+  cmp al, 0x07
+  jz dsitmtco_continue_loop
+  ;
+  cmp al, 0x08
+  jnz dsitmtco_other_character
+  call cursor_decrease
+  jc dsitmtco_continue_loop
+  mov al, 0x20
+  es: mov [di], ax
+  jmp dsitmtco_continue_loop
+dsitmtco_other_character:
+  es: mov [di], ax
+  call cursor_increase
+dsitmtco_continue_loop:
+  loop draw_string_in_teletype_mode_text_chars_only
   ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -383,13 +582,12 @@ dsitmgco_continue_loop:
 ;   latches should be filled with background colour
 ;   write mode 3
 ; Output:
-; Affected registers:
 ;   -
+; Affected registers:
+;   AX, DX
 ;
 draw_character_16cm:
-  push ax
   push cx
-  push dx
   push si
   push di
   push ds
@@ -409,11 +607,181 @@ dc16cm_loop:
   pop ds
   pop di
   pop si
-  pop dx
   pop cx
-  pop ax
   ret
 
+;
+; Function: draw_character_256cm
+; Input:
+;   AL = character to draw
+;   BL = draw colour
+;   ES:DI = position where to write character
+; Output:
+;   -
+; Affected registers:
+;   AX, DX
+;
+draw_character_256cm:
+  push cx
+  push si
+  push di
+  push ds
+  ;
+  mov cx, [bp + DSITM_CHAR_HEIGHT]  ; cx = cl = character height
+  mul cl            ; ax = offset in font table
+  mov si, [bp + DSITM_FONT_TABLE]
+  add si, ax
+  mov ds, [bp + DSITM_FONT_TABLE + 2]  ; ds:si = position in font table
+  mov dx, [bp + DSITM_SCREEN_WIDTH_BYTES]
+  sub dx, 8         ; dx = screen width in bytes - char width
+dc256cm_put_char_loop:
+  push cx
+  mov ah, 0x80
+  mov cx, 8
+dc256cm_put_char_line_loop:
+  test [si], ah
+  jnz dc256cm_set_fgcolour
+  mov al, [bp + DSITM_BACKGROUND_COLOUR]
+  jmp dc256cm_put_pixel
+dc256cm_set_fgcolour:
+  mov al, bl
+dc256cm_put_pixel:
+  stosb
+  shr ah, 1
+  loop dc256cm_put_char_line_loop
+  inc si
+  add di, dx
+  pop cx
+  loop dc256cm_put_char_loop
+  ;
+  pop ds
+  pop di
+  pop si
+  pop cx
+  ret
+
+;
+; Function: draw_character_c2cm
+; Input:
+;   AL = character to draw
+;   BL = draw colour (ignored)
+;   ES:DI = position where to write character
+; Output:
+;   -
+; Affected registers:
+;   AX
+;
+draw_character_c2cm:
+  push cx
+  push si
+  push di
+  push ds
+  ;
+  mov cx, [bp + DSITM_CHAR_HEIGHT]  ; cx = cl = character height
+  mul cl            ; ax = offset in font table
+  mov si, [bp + DSITM_FONT_TABLE]
+  add si, ax
+  mov ds, [bp + DSITM_FONT_TABLE + 2]  ; ds:si = position in font table
+  shr cx, 1         ; cx = character height / 2
+dcc2cm_loop:
+  movsb
+  add di, 0x1FFF
+  movsb
+  sub di, 0x2001
+  add di, [bp + DSITM_SCREEN_WIDTH_BYTES]
+  loop dcc2cm_loop
+  ;
+  pop ds
+  pop di
+  pop si
+  pop cx
+  ret
+
+;
+; Function: draw_character_c4cm
+; Input:
+;   AL = character to draw
+;   BL = draw colour
+;   ES:DI = position where to write character
+; Output:
+;   -
+; Affected registers:
+;   AX, DX
+;
+draw_character_c4cm:
+  push cx
+  push si
+  push di
+  push ds
+  ;
+  mov cx, [bp + DSITM_CHAR_HEIGHT]  ; cx = cl = character height
+  mul cl            ; ax = offset in font table
+  mov si, [bp + DSITM_FONT_TABLE]
+  add si, ax
+  mov ds, [bp + DSITM_FONT_TABLE + 2]  ; ds:si = position in font table
+  shr cx, 1         ; cx = character height / 2
+dcc4cm_loop:
+  call dcc4cm_create_character_line_pixels
+  stosw
+  add di, 0x1FFE
+  call dcc4cm_create_character_line_pixels
+  stosw
+  sub di, 0x2002
+  add di, [bp + DSITM_SCREEN_WIDTH_BYTES]
+  loop dcc4cm_loop
+  ;
+  pop ds
+  pop di
+  pop si
+  pop cx
+  ret
+
+;
+; Function: dcc4cm_create_character_line_pixels
+; Input:
+;   BL = draw colour
+;   DS:SI = position in font table
+;   SS:BP+DSITM_BACKGROUND_COLOUR = background colour/attribute
+; Output:
+;   AX = character line pixels (AL = left four pixels, AH = right four pixels)
+;   SI += 1
+; Affected registers:
+;   DX
+;
+dcc4cm_create_character_line_pixels:
+  push cx
+  ;
+  mov cx, 8
+  mov dl, 0x80
+dcc4cm_cclp_loop:
+  shl ax, 2
+  test [si], dl
+  jz dcc4cm_cclp_set_bgcolour
+  or al, bl
+  shr dl, 1
+  loop dcc4cm_cclp_loop
+  jmp dcc4cm_cclp_loop_end
+dcc4cm_cclp_set_bgcolour:
+  or al, [bp + DSITM_BACKGROUND_COLOUR]
+  shr dl, 1
+  loop dcc4cm_cclp_loop
+dcc4cm_cclp_loop_end:
+  xchg ah, al
+  inc si
+  ;
+  pop cx
+  ret
+
+;
+; The cursor_ functions all expect the following constants to be avaiable on
+; the stack:
+;   SS:BP+DSITM_SCREEN_WIDTH_CHARS = screen width in characters
+;   SS:BP+DSITM_SCREEN_WIDTH_BYTES = screen width in bytes
+;   SS:BP+DSITM_CHAR_WIDTH = character width in bytes
+;   SS:BP+DSITM_LINE_HEIGHT = line height = character height * screen width in bytes
+;   SS:BP+DSITM_MAX_Y = screen height in text rows minus one
+;   SS:BP+DSITM_BACKGROUND_COLOUR = background colour/attribute
+;
 
 ;
 ; Function: cursor_carriage_return
@@ -421,7 +789,6 @@ dc16cm_loop:
 ;   SS:BP+DSITM_CURSOR = cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = cursor's y-coordinate
 ;   DI = corresponding position in video memory
-;   SS:BP+DSITM_CHAR_WIDTH = character width in bytes
 ; Output:
 ;   SS:BP+DSITM_CURSOR = updated cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = updated cursor's y-coordinate
@@ -446,10 +813,6 @@ cursor_carriage_return:
 ;   SS:BP+DSITM_CURSOR = cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = cursor's y-coordinate
 ;   DI = corresponding position in video memory
-;   SS:BP+DSITM_SCREEN_WIDTH_CHARS = screen width in characters
-;   SS:BP+DSITM_CHAR_WIDTH = character width in bytes
-;   SS:BP+DSITM_SCREEN_WIDTH_BYTES = screen width in bytes
-;   SS:BP+DSITM_LINE_HEIGHT = line height = character height * screen width in bytes
 ; Output:
 ;   SS:BP+DSITM_CURSOR = updated cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = updated cursor's y-coordinate
@@ -486,12 +849,6 @@ end_cursor_decrease:
 ;   SS:BP+DSITM_CURSOR = cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = cursor's y-coordinate
 ;   DI = corresponding position in video memory
-;   SS:BP+DSITM_SCREEN_WIDTH_CHARS = screen width in characters
-;   SS:BP+DSITM_CHAR_WIDTH = character width in bytes
-;   SS:BP+DSITM_SCREEN_WIDTH_BYTES = screen width in bytes
-;   SS:BP+DSITM_LINE_HEIGHT = line height = character height * screen width in bytes
-;   SS:BP+DSITM_MAX_Y = screen height in text rows minus one
-;   SS:BP+DSITM_BACKGROUND_COLOUR = background colour/attribute
 ; Output:
 ;   SS:BP+DSITM_CURSOR = updated cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = updated cursor's y-coordinate
@@ -529,8 +886,6 @@ end_cursor_increase:
 ;   SS:BP+DSITM_CURSOR = cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = cursor's y-coordinate
 ;   DI = corresponding position in video memory
-;   SS:BP+DSITM_LINE_HEIGHT = line height = character height * screen width in bytes
-;   SS:BP+DSITM_MAX_Y = screen height in text rows minus one
 ; Output:
 ;   SS:BP+DSITM_CURSOR = updated cursor's x-coordinate
 ;   SS:BP+DSITM_CURSOR+1 = updated cursor's y-coordinate
@@ -556,7 +911,7 @@ end_cursor_line_feed:
 ;
 ; Function: cursor_scroll_up
 ; Input:
-;   SS:BP+DSITM_BACKGROUND_COLOUR = background colour/attribute
+;   -
 ; Output:
 ;   -
 ; Affected registers:
