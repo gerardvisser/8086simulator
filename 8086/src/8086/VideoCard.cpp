@@ -2,7 +2,7 @@
    Author:  Gerard Visser
    e-mail:  visser.gerard(at)gmail.com
 
-   Copyright (C) 2023 Gerard Visser.
+   Copyright (C) 2023, 2024 Gerard Visser.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,8 +18,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <8086/VideoCard.h>
-#include "dacData.h"
-#include "font.h"
+#include "rom/rom.h"
 
 static constexpr double DAC_6_BITS_TO_8_BITS = 255.0 / 63;
 static constexpr double DAC_8_BITS_TO_6_BITS = 63.0 / 255;
@@ -53,8 +52,17 @@ Offset 0 - 0x11 are reserved for variables:
 0x10: graphics mode background colour.
 */
 void VideoCard::loadRom (Memory& memory) {
-  Address variableAddress (0xC000, 0);
+  Address variableAddress (0, 0x40);
   Address dataAddress (0xC000, 0x11);
+
+  memory.writeWord (variableAddress, dataAddress.offset);
+  variableAddress += 2;
+  memory.writeWord (variableAddress, dataAddress.segment);
+  memory.writeBytes (dataAddress, rom::int0x10, 7480);
+  dataAddress += 7480;
+
+  variableAddress.segment = dataAddress.segment;
+  variableAddress.offset = 0;
 
   memory.writeWord (variableAddress, dataAddress.offset);
   variableAddress += 2;

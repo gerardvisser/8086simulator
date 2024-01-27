@@ -2,7 +2,7 @@
    Author:  Gerard Visser
    e-mail:  visser.gerard(at)gmail.com
 
-   Copyright (C) 2023 Gerard Visser.
+   Copyright (C) 2024 Gerard Visser.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,13 +17,19 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __DAC_DATA_INCLUDED
-#define __DAC_DATA_INCLUDED
+#ifndef __REGISTERS_INCLUDED
+#define __REGISTERS_INCLUDED
 
 #include <cstdint>
 
-namespace rom {
-  extern const uint8_t dacData[1152];
-}
+class Registers {
+public:
+  uint16_t gen[8];
+  uint16_t seg[4];
+  uint16_t flags;
+  uint16_t ip;
+
+  Registers (void);
+};
 
 #endif

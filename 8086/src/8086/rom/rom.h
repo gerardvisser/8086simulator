@@ -2,7 +2,7 @@
    Author:  Gerard Visser
    e-mail:  visser.gerard(at)gmail.com
 
-   Copyright (C) 2023 Gerard Visser.
+   Copyright (C) 2024 Gerard Visser.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,13 +17,15 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __FONT_INCLUDED
-#define __FONT_INCLUDED
+#ifndef __ROM_INCLUDED
+#define __ROM_INCLUDED
 
 #include <cstdint>
 
 namespace rom {
+  extern const uint8_t dacData[1152];
   extern const uint8_t font[9728];
+  extern const uint8_t int0x10[7480];
 }
 
 #endif

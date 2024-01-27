@@ -3,7 +3,7 @@ include ../common_objs.mk
 
 CXXFLAGS:=$(CXXFLAGS) -I../include
 
-VPATH=../src/8086:../src/8086/exception:../src/8086/sdl
+VPATH=../src/8086:../src/8086/exception:../src/8086/rom:../src/8086/sdl
 
 objs:=$(objs)\
   IOTask.o\

@@ -5,8 +5,11 @@ objs=\
   Colour.o\
   dacData.o\
   font.o\
+  int0x10.o\
   Memory.o\
+  Processor.o\
   Renderer.o\
+  Registers.o\
   RuntimeException.o\
   VideoCard.o\
   VideoMemory.o\

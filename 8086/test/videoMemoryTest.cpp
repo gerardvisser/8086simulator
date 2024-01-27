@@ -2,7 +2,7 @@
    Author:  Gerard Visser
    e-mail:  visser.gerard(at)gmail.com
 
-   Copyright (C) 2023 Gerard Visser.
+   Copyright (C) 2023, 2024 Gerard Visser.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <8086/VideoMemory.h>
-#include "../src/8086/font.h"
+#include "../src/8086/rom/rom.h"
 
 /* Memory modes: */
 #define ODD_EVEN 0
