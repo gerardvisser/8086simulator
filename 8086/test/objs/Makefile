@@ -7,6 +7,7 @@ CPPFLAGS=-DTEST_MODE
 VPATH=..:../../src/8086:../../src/8086/exception:../../src/8086/rom:../../src/8086/sdl
 
 objs:=$(objs)\
+  registersTest.o\
   test.o\
   videoMemoryTest.o
 

@@ -29,3 +29,38 @@ Registers::Registers (void) {
   flags = 0xF002;
   ip = 0;
 }
+
+uint16_t Registers::getGen (bool wide, int index) {
+  if (wide) {
+    index &= 7;
+    return gen[index];
+  }
+
+  bool high = (index & 4) != 0;
+  index &= 3;
+  uint16_t value = gen[index];
+  if (high) {
+    value >>= 8;
+  } else {
+    value &= 0xFF;
+  }
+  return value;
+}
+
+void Registers::setGen (bool wide, int index, uint16_t value) {
+  if (wide) {
+    index &= 7;
+    gen[index] = value;
+  } else {
+    bool high = (index & 4) != 0;
+    index &= 3;
+    if (high) {
+      value <<= 8;
+      gen[index] &= 0x00FF;
+    } else {
+      value &= 0xFF;
+      gen[index] &= 0xFF00;
+    }
+    gen[index] |= value;
+  }
+}

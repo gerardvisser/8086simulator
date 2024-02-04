@@ -2,7 +2,7 @@
    Author:  Gerard Visser
    e-mail:  visser.gerard(at)gmail.com
 
-   Copyright (C) 2023, 2024 Gerard Visser.
+   Copyright (C) 2024 Gerard Visser.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,11 +17,12 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
-#ifndef __ASSERTIONS_INCLUDED
-#define __ASSERTIONS_INCLUDED
+#ifndef __REGISTERS_TEST_INCLUDED
+#define __REGISTERS_TEST_INCLUDED
 
-#include <cstdio>
-
-#define assertTrue(condition, ...) if (!(condition)) { printf ("\x1B[31m"); printf (__VA_ARGS__); printf ("\x1B[0m"); return; }
+namespace registersTest {
+  void getGen (void);
+  void setGen (void);
+}
 
 #endif

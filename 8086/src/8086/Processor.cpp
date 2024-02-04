@@ -35,7 +35,7 @@
 
 #define F_CARRY     0x0001
 #define F_PARITY    0x0004
-#define F_ADJUST    0x0010
+#define F_AUX_CARRY 0x0010
 #define F_ZERO      0x0040
 #define F_SIGN      0x0080
 #define F_TRAP      0x0100
@@ -52,12 +52,15 @@ Processor::~Processor (void) {
 void Processor::execute00xx (void) {
   switch (m_nextInstruction[0] & 6) {
   case 6: /* 00xx x11x */
+    /* TODO */
     break;
 
   case 4: /* 00xx x10x */
+    /* TODO */
     break;
 
   default: /* 00xx x0xx */
+    /* TODO */
     ;
   }
 }
@@ -72,12 +75,15 @@ void Processor::executeNextInstruction (void) {
     break;
 
   case 1: /* 01xx xxxx (40-7F) */
+    /* TODO */
     break;
 
   case 2: /* 10xx xxxx (80-BF) */
+    /* TODO */
     break;
 
   default: /* 11xx xxxx (C0-FF) */
+    /* TODO */
     ;
   }
 }

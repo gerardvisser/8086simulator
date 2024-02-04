@@ -30,6 +30,8 @@ public:
   uint16_t ip;
 
   Registers (void);
+  uint16_t getGen (bool wide, int index);
+  void setGen (bool wide, int index, uint16_t value);
 };
 
 #endif

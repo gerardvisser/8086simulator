@@ -1,3 +1,4 @@
+#include "registersTest.h"
 #include "videoMemoryTest.h"
 
 int main (int argc, char** args, char** env) {
@@ -25,5 +26,7 @@ int main (int argc, char** args, char** env) {
   videoMemoryTest::getPixels_singleShift_maxScanLine_wideChars ();
   videoMemoryTest::getPixels_interleavedShift_maxScanLine_wideChars ();
   videoMemoryTest::getPixels_256Shift_maxScanLine_wideChars ();
+  registersTest::getGen ();
+  registersTest::setGen ();
   return 0;
 }
