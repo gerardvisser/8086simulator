@@ -1,0 +1,1306 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <style type="text/css">
+      body {
+        font-family: monospace;
+        font-size: 16px;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      td {
+        background-color: #FFFFFF;
+        border-color: #000000;
+        border-style: solid;
+        border-width: 1px;
+        padding: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <td>00</td>
+        <td>0000 0000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>01</td>
+        <td>0000 0001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>02</td>
+        <td>0000 0010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>03</td>
+        <td>0000 0011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>04</td>
+        <td>0000 0100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>05</td>
+        <td>0000 0101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>06</td>
+        <td>0000 0110</td>
+        <td>push sreg</td>
+      </tr>
+      <tr>
+        <td>07</td>
+        <td>0000 0111</td>
+        <td>pop sreg</td>
+      </tr>
+      <tr>
+        <td>08</td>
+        <td>0000 1000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>09</td>
+        <td>0000 1001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>0A</td>
+        <td>0000 1010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>0B</td>
+        <td>0000 1011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>0C</td>
+        <td>0000 1100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>0D</td>
+        <td>0000 1101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>0E</td>
+        <td>0000 1110</td>
+        <td>push sreg</td>
+      </tr>
+      <tr>
+        <td>0F</td>
+        <td>0000 1111</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td>0001 0000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td>0001 0001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>12</td>
+        <td>0001 0010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>13</td>
+        <td>0001 0011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>14</td>
+        <td>0001 0100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>15</td>
+        <td>0001 0101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>16</td>
+        <td>0001 0110</td>
+        <td>push sreg</td>
+      </tr>
+      <tr>
+        <td>17</td>
+        <td>0001 0111</td>
+        <td>pop sreg</td>
+      </tr>
+      <tr>
+        <td>18</td>
+        <td>0001 1000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>19</td>
+        <td>0001 1001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>1A</td>
+        <td>0001 1010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>1B</td>
+        <td>0001 1011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>1C</td>
+        <td>0001 1100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>1D</td>
+        <td>0001 1101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>1E</td>
+        <td>0001 1110</td>
+        <td>push sreg</td>
+      </tr>
+      <tr>
+        <td>1F</td>
+        <td>0001 1111</td>
+        <td>pop sreg</td>
+      </tr>
+      <tr>
+        <td>20</td>
+        <td>0010 0000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>21</td>
+        <td>0010 0001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>22</td>
+        <td>0010 0010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>23</td>
+        <td>0010 0011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>24</td>
+        <td>0010 0100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>25</td>
+        <td>0010 0101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>26</td>
+        <td>0010 0110</td>
+        <td>es:</td>
+      </tr>
+      <tr>
+        <td>27</td>
+        <td>0010 0111</td>
+        <td>daa/das/aaa/aas</td>
+      </tr>
+      <tr>
+        <td>28</td>
+        <td>0010 1000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>29</td>
+        <td>0010 1001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>2A</td>
+        <td>0010 1010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>2B</td>
+        <td>0010 1011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>2C</td>
+        <td>0010 1100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>2D</td>
+        <td>0010 1101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>2E</td>
+        <td>0010 1110</td>
+        <td>cs:</td>
+      </tr>
+      <tr>
+        <td>2F</td>
+        <td>0010 1111</td>
+        <td>daa/das/aaa/aas</td>
+      </tr>
+      <tr>
+        <td>30</td>
+        <td>0011 0000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>31</td>
+        <td>0011 0001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>32</td>
+        <td>0011 0010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>33</td>
+        <td>0011 0011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>34</td>
+        <td>0011 0100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>35</td>
+        <td>0011 0101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>36</td>
+        <td>0011 0110</td>
+        <td>ss:</td>
+      </tr>
+      <tr>
+        <td>37</td>
+        <td>0011 0111</td>
+        <td>daa/das/aaa/aas</td>
+      </tr>
+      <tr>
+        <td>38</td>
+        <td>0011 1000</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>39</td>
+        <td>0011 1001</td>
+        <td>arith mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>3A</td>
+        <td>0011 1010</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>3B</td>
+        <td>0011 1011</td>
+        <td>arith reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>3C</td>
+        <td>0011 1100</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>3D</td>
+        <td>0011 1101</td>
+        <td>arith acc,imm</td>
+      </tr>
+      <tr>
+        <td>3E</td>
+        <td>0011 1110</td>
+        <td>ds:</td>
+      </tr>
+      <tr>
+        <td>3F</td>
+        <td>0011 1111</td>
+        <td>daa/das/aaa/aas</td>
+      </tr>
+      <tr>
+        <td>40</td>
+        <td>0100 0000</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>41</td>
+        <td>0100 0001</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>42</td>
+        <td>0100 0010</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>43</td>
+        <td>0100 0011</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>44</td>
+        <td>0100 0100</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>45</td>
+        <td>0100 0101</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>46</td>
+        <td>0100 0110</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>47</td>
+        <td>0100 0111</td>
+        <td>inc reg16</td>
+      </tr>
+      <tr>
+        <td>48</td>
+        <td>0100 1000</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>49</td>
+        <td>0100 1001</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>4A</td>
+        <td>0100 1010</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>4B</td>
+        <td>0100 1011</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>4C</td>
+        <td>0100 1100</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>4D</td>
+        <td>0100 1101</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>4E</td>
+        <td>0100 1110</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>4F</td>
+        <td>0100 1111</td>
+        <td>dec reg16</td>
+      </tr>
+      <tr>
+        <td>50</td>
+        <td>0101 0000</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>51</td>
+        <td>0101 0001</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>52</td>
+        <td>0101 0010</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>53</td>
+        <td>0101 0011</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>54</td>
+        <td>0101 0100</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>55</td>
+        <td>0101 0101</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>56</td>
+        <td>0101 0110</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>57</td>
+        <td>0101 0111</td>
+        <td>push reg16</td>
+      </tr>
+      <tr>
+        <td>58</td>
+        <td>0101 1000</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>59</td>
+        <td>0101 1001</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>5A</td>
+        <td>0101 1010</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>5B</td>
+        <td>0101 1011</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>5C</td>
+        <td>0101 1100</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>5D</td>
+        <td>0101 1101</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>5E</td>
+        <td>0101 1110</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>5F</td>
+        <td>0101 1111</td>
+        <td>pop reg16</td>
+      </tr>
+      <tr>
+        <td>60</td>
+        <td>0110 0000</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>61</td>
+        <td>0110 0001</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>62</td>
+        <td>0110 0010</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>63</td>
+        <td>0110 0011</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>64</td>
+        <td>0110 0100</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>65</td>
+        <td>0110 0101</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>66</td>
+        <td>0110 0110</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>67</td>
+        <td>0110 0111</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>68</td>
+        <td>0110 1000</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>69</td>
+        <td>0110 1001</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>6A</td>
+        <td>0110 1010</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>6B</td>
+        <td>0110 1011</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>6C</td>
+        <td>0110 1100</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>6D</td>
+        <td>0110 1101</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>6E</td>
+        <td>0110 1110</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>6F</td>
+        <td>0110 1111</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>70</td>
+        <td>0111 0000</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>71</td>
+        <td>0111 0001</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>72</td>
+        <td>0111 0010</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>73</td>
+        <td>0111 0011</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>74</td>
+        <td>0111 0100</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>75</td>
+        <td>0111 0101</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>76</td>
+        <td>0111 0110</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>77</td>
+        <td>0111 0111</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>78</td>
+        <td>0111 1000</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>79</td>
+        <td>0111 1001</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>7A</td>
+        <td>0111 1010</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>7B</td>
+        <td>0111 1011</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>7C</td>
+        <td>0111 1100</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>7D</td>
+        <td>0111 1101</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>7E</td>
+        <td>0111 1110</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>7F</td>
+        <td>0111 1111</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>80</td>
+        <td>1000 0000</td>
+        <td>arith mem,imm/reg,imm</td>
+      </tr>
+      <tr>
+        <td>81</td>
+        <td>1000 0001</td>
+        <td>arith mem,imm/reg,imm</td>
+      </tr>
+      <tr>
+        <td>82</td>
+        <td>1000 0010</td>
+        <td>arith mem,imm/reg,imm</td>
+      </tr>
+      <tr>
+        <td>83</td>
+        <td>1000 0011</td>
+        <td>arith mem,imm/reg,imm</td>
+      </tr>
+      <tr>
+        <td>84</td>
+        <td>1000 0100</td>
+        <td>test</td>
+      </tr>
+      <tr>
+        <td>85</td>
+        <td>1000 0101</td>
+        <td>test</td>
+      </tr>
+      <tr>
+        <td>86</td>
+        <td>1000 0110</td>
+        <td>xchg</td>
+      </tr>
+      <tr>
+        <td>87</td>
+        <td>1000 0111</td>
+        <td>xchg</td>
+      </tr>
+      <tr>
+        <td>88</td>
+        <td>1000 1000</td>
+        <td>mov mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>89</td>
+        <td>1000 1001</td>
+        <td>mov mem,reg/reg,reg</td>
+      </tr>
+      <tr>
+        <td>8A</td>
+        <td>1000 1010</td>
+        <td>mov reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>8B</td>
+        <td>1000 1011</td>
+        <td>mov reg,mem/reg,reg</td>
+      </tr>
+      <tr>
+        <td>8C</td>
+        <td>1000 1100</td>
+        <td>mov reg,sreg/mem,sreg/sreg,reg/sreg,mem</td>
+      </tr>
+      <tr>
+        <td>8D</td>
+        <td>1000 1101</td>
+        <td>lea</td>
+      </tr>
+      <tr>
+        <td>8E</td>
+        <td>1000 1110</td>
+        <td>mov reg,sreg/mem,sreg/sreg,reg/sreg,mem</td>
+      </tr>
+      <tr>
+        <td>8F</td>
+        <td>1000 1111</td>
+        <td>pop mem16</td>
+      </tr>
+      <tr>
+        <td>90</td>
+        <td>1001 0000</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>91</td>
+        <td>1001 0001</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>92</td>
+        <td>1001 0010</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>93</td>
+        <td>1001 0011</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>94</td>
+        <td>1001 0100</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>95</td>
+        <td>1001 0101</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>96</td>
+        <td>1001 0110</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>97</td>
+        <td>1001 0111</td>
+        <td>xchg ax,reg</td>
+      </tr>
+      <tr>
+        <td>98</td>
+        <td>1001 1000</td>
+        <td>cbw/cwd</td>
+      </tr>
+      <tr>
+        <td>99</td>
+        <td>1001 1001</td>
+        <td>cbw/cwd</td>
+      </tr>
+      <tr>
+        <td>9A</td>
+        <td>1001 1010</td>
+        <td>call</td>
+      </tr>
+      <tr>
+        <td>9B</td>
+        <td>1001 1011</td>
+        <td>wait/pushf/popf/sahf/lahf</td>
+      </tr>
+      <tr>
+        <td>9C</td>
+        <td>1001 1100</td>
+        <td>wait/pushf/popf/sahf/lahf</td>
+      </tr>
+      <tr>
+        <td>9D</td>
+        <td>1001 1101</td>
+        <td>wait/pushf/popf/sahf/lahf</td>
+      </tr>
+      <tr>
+        <td>9E</td>
+        <td>1001 1110</td>
+        <td>wait/pushf/popf/sahf/lahf</td>
+      </tr>
+      <tr>
+        <td>9F</td>
+        <td>1001 1111</td>
+        <td>wait/pushf/popf/sahf/lahf</td>
+      </tr>
+      <tr>
+        <td>A0</td>
+        <td>1010 0000</td>
+        <td>mov acc,mem/mem,acc</td>
+      </tr>
+      <tr>
+        <td>A1</td>
+        <td>1010 0001</td>
+        <td>mov acc,mem/mem,acc</td>
+      </tr>
+      <tr>
+        <td>A2</td>
+        <td>1010 0010</td>
+        <td>mov acc,mem/mem,acc</td>
+      </tr>
+      <tr>
+        <td>A3</td>
+        <td>1010 0011</td>
+        <td>mov acc,mem/mem,acc</td>
+      </tr>
+      <tr>
+        <td>A4</td>
+        <td>1010 0100</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>A5</td>
+        <td>1010 0101</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>A6</td>
+        <td>1010 0110</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>A7</td>
+        <td>1010 0111</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>A8</td>
+        <td>1010 1000</td>
+        <td>test</td>
+      </tr>
+      <tr>
+        <td>A9</td>
+        <td>1010 1001</td>
+        <td>test</td>
+      </tr>
+      <tr>
+        <td>AA</td>
+        <td>1010 1010</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>AB</td>
+        <td>1010 1011</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>AC</td>
+        <td>1010 1100</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>AD</td>
+        <td>1010 1101</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>AE</td>
+        <td>1010 1110</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>AF</td>
+        <td>1010 1111</td>
+        <td>string</td>
+      </tr>
+      <tr>
+        <td>B0</td>
+        <td>1011 0000</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B1</td>
+        <td>1011 0001</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B2</td>
+        <td>1011 0010</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B3</td>
+        <td>1011 0011</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B4</td>
+        <td>1011 0100</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B5</td>
+        <td>1011 0101</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B6</td>
+        <td>1011 0110</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B7</td>
+        <td>1011 0111</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B8</td>
+        <td>1011 1000</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>B9</td>
+        <td>1011 1001</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>BA</td>
+        <td>1011 1010</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>BB</td>
+        <td>1011 1011</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>BC</td>
+        <td>1011 1100</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>BD</td>
+        <td>1011 1101</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>BE</td>
+        <td>1011 1110</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>BF</td>
+        <td>1011 1111</td>
+        <td>mov reg,imm</td>
+      </tr>
+      <tr>
+        <td>C0</td>
+        <td>1100 0000</td>
+        <td>shift reg,imm/mem,imm</td>
+      </tr>
+      <tr>
+        <td>C1</td>
+        <td>1100 0001</td>
+        <td>shift reg,imm/mem,imm</td>
+      </tr>
+      <tr>
+        <td>C2</td>
+        <td>1100 0010</td>
+        <td>ret</td>
+      </tr>
+      <tr>
+        <td>C3</td>
+        <td>1100 0011</td>
+        <td>ret</td>
+      </tr>
+      <tr>
+        <td>C4</td>
+        <td>1100 0100</td>
+        <td>les/lds</td>
+      </tr>
+      <tr>
+        <td>C5</td>
+        <td>1100 0101</td>
+        <td>les/lds</td>
+      </tr>
+      <tr>
+        <td>C6</td>
+        <td>1100 0110</td>
+        <td>mov mem,imm</td>
+      </tr>
+      <tr>
+        <td>C7</td>
+        <td>1100 0111</td>
+        <td>mov mem,imm</td>
+      </tr>
+      <tr>
+        <td>C8</td>
+        <td>1100 1000</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>C9</td>
+        <td>1100 1001</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>CA</td>
+        <td>1100 1010</td>
+        <td>retf</td>
+      </tr>
+      <tr>
+        <td>CB</td>
+        <td>1100 1011</td>
+        <td>retf</td>
+      </tr>
+      <tr>
+        <td>CC</td>
+        <td>1100 1100</td>
+        <td>int/iret</td>
+      </tr>
+      <tr>
+        <td>CD</td>
+        <td>1100 1101</td>
+        <td>int/iret</td>
+      </tr>
+      <tr>
+        <td>CE</td>
+        <td>1100 1110</td>
+        <td>int/iret</td>
+      </tr>
+      <tr>
+        <td>CF</td>
+        <td>1100 1111</td>
+        <td>int/iret</td>
+      </tr>
+      <tr>
+        <td>D0</td>
+        <td>1101 0000</td>
+        <td>shift reg,1/mem,1</td>
+      </tr>
+      <tr>
+        <td>D1</td>
+        <td>1101 0001</td>
+        <td>shift reg,1/mem,1</td>
+      </tr>
+      <tr>
+        <td>D2</td>
+        <td>1101 0010</td>
+        <td>shift reg,cl/mem,cl</td>
+      </tr>
+      <tr>
+        <td>D3</td>
+        <td>1101 0011</td>
+        <td>shift reg,cl/mem,cl</td>
+      </tr>
+      <tr>
+        <td>D4</td>
+        <td>1101 0100</td>
+        <td>aam/aad/xlat</td>
+      </tr>
+      <tr>
+        <td>D5</td>
+        <td>1101 0101</td>
+        <td>aam/aad/xlat</td>
+      </tr>
+      <tr>
+        <td>D6</td>
+        <td>1101 0110</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>D7</td>
+        <td>1101 0111</td>
+        <td>aam/aad/xlat</td>
+      </tr>
+      <tr>
+        <td>D8</td>
+        <td>1101 1000</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>D9</td>
+        <td>1101 1001</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>DA</td>
+        <td>1101 1010</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>DB</td>
+        <td>1101 1011</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>DC</td>
+        <td>1101 1100</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>DD</td>
+        <td>1101 1101</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>DE</td>
+        <td>1101 1110</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>DF</td>
+        <td>1101 1111</td>
+        <td>esc 8087</td>
+      </tr>
+      <tr>
+        <td>E0</td>
+        <td>1110 0000</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>E1</td>
+        <td>1110 0001</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>E2</td>
+        <td>1110 0010</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>E3</td>
+        <td>1110 0011</td>
+        <td>cond. jump</td>
+      </tr>
+      <tr>
+        <td>E4</td>
+        <td>1110 0100</td>
+        <td>in acc,port</td>
+      </tr>
+      <tr>
+        <td>E5</td>
+        <td>1110 0101</td>
+        <td>in acc,port</td>
+      </tr>
+      <tr>
+        <td>E6</td>
+        <td>1110 0110</td>
+        <td>out port,acc</td>
+      </tr>
+      <tr>
+        <td>E7</td>
+        <td>1110 0111</td>
+        <td>out port,acc</td>
+      </tr>
+      <tr>
+        <td>E8</td>
+        <td>1110 1000</td>
+        <td>call/jmp</td>
+      </tr>
+      <tr>
+        <td>E9</td>
+        <td>1110 1001</td>
+        <td>call/jmp</td>
+      </tr>
+      <tr>
+        <td>EA</td>
+        <td>1110 1010</td>
+        <td>call/jmp</td>
+      </tr>
+      <tr>
+        <td>EB</td>
+        <td>1110 1011</td>
+        <td>call/jmp</td>
+      </tr>
+      <tr>
+        <td>EC</td>
+        <td>1110 1100</td>
+        <td>in acc,dx</td>
+      </tr>
+      <tr>
+        <td>ED</td>
+        <td>1110 1101</td>
+        <td>in acc,dx</td>
+      </tr>
+      <tr>
+        <td>EE</td>
+        <td>1110 1110</td>
+        <td>out dx,acc</td>
+      </tr>
+      <tr>
+        <td>EF</td>
+        <td>1110 1111</td>
+        <td>out dx,acc</td>
+      </tr>
+      <tr>
+        <td>F0</td>
+        <td>1111 0000</td>
+        <td>lock/repnz/repz</td>
+      </tr>
+      <tr>
+        <td>F1</td>
+        <td>1111 0001</td>
+        <td>illegal</td>
+      </tr>
+      <tr>
+        <td>F2</td>
+        <td>1111 0010</td>
+        <td>lock/repnz/repz</td>
+      </tr>
+      <tr>
+        <td>F3</td>
+        <td>1111 0011</td>
+        <td>lock/repnz/repz</td>
+      </tr>
+      <tr>
+        <td>F4</td>
+        <td>1111 0100</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>F5</td>
+        <td>1111 0101</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>F6</td>
+        <td>1111 0110</td>
+        <td>test reg,imm/mem,imm</td>
+      </tr>
+      <tr>
+        <td>F7</td>
+        <td>1111 0111</td>
+        <td>test reg,imm/mem,imm</td>
+      </tr>
+      <tr>
+        <td>F8</td>
+        <td>1111 1000</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>F9</td>
+        <td>1111 1001</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>FA</td>
+        <td>1111 1010</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>FB</td>
+        <td>1111 1011</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>FC</td>
+        <td>1111 1100</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>FD</td>
+        <td>1111 1101</td>
+        <td>misc</td>
+      </tr>
+      <tr>
+        <td>FE</td>
+        <td>1111 1110</td>
+        <td>inc/dec</td>
+      </tr>
+      <tr>
+        <td>FF</td>
+        <td>1111 1111</td>
+        <td>inc/dec/call/jmp/push</td>
+      </tr>
+    </table>
+  </body>
+</html>

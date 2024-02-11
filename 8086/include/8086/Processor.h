@@ -25,11 +25,24 @@
 
 class Processor {
 private:
+  class Instruction {
+  private:
+    uint8_t m_array[6];
+
+  public:
+    uint8_t operator[] (int index) const;
+    uint16_t getByteOrWord (int index, bool wide) const;
+    uint16_t getSignedByteAsWord (int index) const;
+    uint16_t getWord (int index) const;
+    void read (const Memory& memory, const Address& address);
+  };
+
   Memory& m_memory;
   int64_t m_operand1;
   int64_t m_operand2;
   Registers m_registers;
-  uint8_t m_nextInstruction[6];
+  Instruction m_instruction;
+  int m_segmentOverride;
 
 public:
   explicit Processor (Memory& memory);
@@ -46,6 +59,18 @@ public:
 
 private:
   void execute00xx (void);
+  void execute1000 (void);
+  void execute1001 (void);
+  void execute1010 (void);
+  void execute1100 (void);
+  void executeMovAccMem (void);
+  void executeMovMemAcc (void);
+  void executeMovRegImm (void);
+  void executeMovRegRm (void);
+  void executeMovRmImm (void);
+  void executeMovRmReg (void);
+  void executeMovRmSeg (void);
+  void executeMovSegRm (void);
 /*
   void executeArithmeticTwoOps (void);
 */

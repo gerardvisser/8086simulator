@@ -46,6 +46,10 @@
       td.opt {
         color: #707070;
       }
+      tr.added td.head {
+        background-color: #CACAFF;
+        text-align: left;
+      }
       tr.example td {
         background-color: #B0FFB0;
       }
@@ -847,6 +851,20 @@
 
     <div class="inlineblock">
       <table>
+        <tr class="added">
+          <td class="head">ROL reg,imm</td>
+          <td>1100 000w</td>
+          <td><i>11</i> <span class="cyan">000</span> <i>rrr</i></td>
+          <td>data</td>
+        </tr>
+        <tr class="added">
+          <td class="head">ROL mem,imm</td>
+          <td>1100 000w</td>
+          <td>aa <span class="cyan">000</span> mmm</td>
+          <td class="opt">l-disp</td>
+          <td class="opt">h-disp</td>
+          <td>data</td>
+        </tr>
         <tr>
           <td class="head">ROL reg,1</td>
           <td>1101 000w</td>
