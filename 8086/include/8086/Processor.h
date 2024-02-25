@@ -43,6 +43,7 @@ private:
   Registers m_registers;
   Instruction m_instruction;
   int m_segmentOverride;
+  int m_displacementBytes;
 
 public:
   explicit Processor (Memory& memory);
@@ -57,7 +58,10 @@ public:
 
   void executeNextInstruction (void);
 
+  Registers& registers (void);
+
 private:
+  Address calculateOperandAddress (void);
   void execute00xx (void);
   void execute1000 (void);
   void execute1001 (void);

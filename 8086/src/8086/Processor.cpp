@@ -18,35 +18,88 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
 
 #include <8086/Processor.h>
+#include "registerAndFlagIds.h"
 
-#define AX 0
-#define CX 1
-#define DX 2
-#define BX 3
-#define SP 4
-#define BP 5
-#define SI 6
-#define DI 7
-
-#define ES 0
-#define CS 1
-#define SS 2
-#define DS 3
-
-#define F_CARRY     0x0001
-#define F_PARITY    0x0004
-#define F_AUX_CARRY 0x0010
-#define F_ZERO      0x0040
-#define F_SIGN      0x0080
-#define F_TRAP      0x0100
-#define F_INTERRUPT 0x0200
-#define F_DIRECTION 0x0400
-#define F_OVERFLOW  0x0800
+#define instructionHasMemoryOperand(modrmByte) (modrmByte >> 6 != 3)
 
 Processor::Processor (Memory& memory) : m_memory (memory), m_segmentOverride (-1) {
 }
 
 Processor::~Processor (void) {
+}
+
+Address Processor::calculateOperandAddress (void) {
+  Address address;
+  int modrmByte = m_instruction[1];
+  switch (modrmByte & 7) {
+  case 0:
+    address.segment = m_registers.seg[DS];
+    address.offset = m_registers.gen[BX] + m_registers.gen[SI];
+    break;
+
+  case 1:
+    address.segment = m_registers.seg[DS];
+    address.offset = m_registers.gen[BX] + m_registers.gen[DI];
+    break;
+
+  case 2:
+    address.segment = m_registers.seg[SS];
+    address.offset = m_registers.gen[BP] + m_registers.gen[SI];
+    break;
+
+  case 3:
+    address.segment = m_registers.seg[SS];
+    address.offset = m_registers.gen[BP] + m_registers.gen[DI];
+    break;
+
+  case 4:
+    address.segment = m_registers.seg[DS];
+    address.offset = m_registers.gen[SI];
+    break;
+
+  case 5:
+    address.segment = m_registers.seg[DS];
+    address.offset = m_registers.gen[DI];
+    break;
+
+  case 6:
+    address.segment = m_registers.seg[SS];
+    address.offset = m_registers.gen[BP];
+    break;
+
+  case 7:
+    address.segment = m_registers.seg[DS];
+    address.offset = m_registers.gen[BX];
+  }
+
+  switch (modrmByte >> 6) {
+  case 0:
+    if ((modrmByte & 7) == 6) {
+      address.segment = m_registers.seg[DS];
+      address.offset = m_instruction.getWord (2);
+      m_displacementBytes = 2;
+      m_registers.ip += 2;
+    } else {
+      m_displacementBytes = 0;
+    }
+    break;
+
+  case 1:
+    address.offset += m_instruction.getSignedByteAsWord (2);
+    m_displacementBytes = 1;
+    ++m_registers.ip;
+    break;
+
+  case 2:
+    address.offset += m_instruction.getWord (2);
+    m_displacementBytes = 2;
+    m_registers.ip += 2;
+  }
+
+  if (m_segmentOverride > -1) {
+    address.segment = m_registers.seg[m_segmentOverride];
+  }
+  return address;
 }
 
 void Processor::execute00xx (void) {
@@ -311,23 +364,72 @@ void Processor::executeMovRegImm (void) {
 }
 
 void Processor::executeMovRegRm (void) {
-  /* TODO */
+  bool wide = m_instruction[0] & 1;
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_operand1 = m_memory.read (address, wide);
+  } else {
+    m_operand1 = m_registers.getGen (wide, m_instruction[1]);
+  }
+  m_registers.setGen (wide, m_instruction[1] >> 3, m_operand1);
+  m_registers.ip += 2;
 }
 
 void Processor::executeMovRmImm (void) {
-  /* TODO */
+  if ((m_instruction[1] & 0x38) != 0) {
+    /* TODO: illegal instruction */
+  }
+  bool wide = m_instruction[0] & 1;
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_operand1 = m_instruction.getByteOrWord (2 + m_displacementBytes, wide);
+    m_memory.write (address, m_operand1, wide);
+  } else {
+    m_operand1 = m_instruction.getByteOrWord (2, wide);
+    m_registers.setGen (wide, m_instruction[1], m_operand1);
+  }
+  m_registers.ip += 3 + wide;
 }
 
 void Processor::executeMovRmReg (void) {
-  /* TODO */
+  bool wide = m_instruction[0] & 1;
+  m_operand1 = m_registers.getGen (wide, m_instruction[1] >> 3);
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_memory.write (address, m_operand1, wide);
+  } else {
+    m_registers.setGen (wide, m_instruction[1], m_operand1);
+  }
+  m_registers.ip += 2;
 }
 
 void Processor::executeMovRmSeg (void) {
-  /* TODO */
+  if ((m_instruction[1] & 0x20) != 0) {
+    /* TODO: illegal instruction */
+  }
+  int segId = m_instruction[1] >> 3 & 3;
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_memory.writeWord (address, m_registers.seg[segId]);
+  } else {
+    m_registers.gen[m_instruction[1] & 7] = m_registers.seg[segId];
+  }
+  m_registers.ip += 2;
 }
 
 void Processor::executeMovSegRm (void) {
-  /* TODO */
+  if ((m_instruction[1] & 0x20) != 0) {
+    /* TODO: illegal instruction */
+  }
+  int segId = m_instruction[1] >> 3 & 3;
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_operand1 = m_memory.readWord (address);
+  } else {
+    m_operand1 = m_registers.gen[m_instruction[1] & 7];
+  }
+  m_registers.seg[segId] = m_operand1;
+  m_registers.ip += 2;
 }
 
 void Processor::executeNextInstruction (void) {
@@ -390,6 +492,10 @@ void Processor::executeNextInstruction (void) {
     /* TODO */
     ;
   }
+}
+
+Registers& Processor::registers (void) {
+  return m_registers;
 }
 
 uint8_t Processor::Instruction::operator[] (int index) const {
