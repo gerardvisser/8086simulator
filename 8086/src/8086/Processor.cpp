@@ -105,7 +105,7 @@ Address Processor::calculateOperandAddress (void) {
 void Processor::execute00xx (void) {
   switch (m_instruction[0] & 6) {
   case 6: /* 00xx x11x */
-    /* TODO */
+    execute00xxx11x ();
     break;
 
   case 4: /* 00xx x10x */
@@ -115,6 +115,25 @@ void Processor::execute00xx (void) {
   default: /* 00xx x0xx */
     /* TODO */
     ;
+  }
+}
+
+void Processor::execute00xxx11x (void) {
+  ++m_registers.ip;
+  if ((m_instruction[0] & 0x20) != 0) {
+    if ((m_instruction[0] & 1) != 0) {
+      /* TODO */
+    } else {
+      if ((m_instruction[1] & 0xE7) != 0x26) {
+        m_segmentOverride = m_instruction[0] >> 3 & 3;
+        executeNextInstruction ();
+        m_segmentOverride = -1;
+      }
+    }
+  } else if ((m_instruction[0] & 1) != 0) {
+    /* TODO: pop sreg */
+  } else {
+    /* TODO: push sreg */
   }
 }
 

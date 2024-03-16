@@ -63,6 +63,7 @@ public:
 private:
   Address calculateOperandAddress (void);
   void execute00xx (void);
+  void execute00xxx11x (void);
   void execute1000 (void);
   void execute1001 (void);
   void execute1010 (void);
