@@ -301,3 +301,193 @@ void processorTest::mov (void) {
 
   printf ("Ok\n");
 }
+
+void processorTest::pushPop (void) {
+  printf ("processorTest::pushPop: ");
+
+  ProcessorWrapper wrapper;
+  wrapper.loadCode (processorTestCode::pushPop, 55);
+  wrapper.setGeneralPurposeRegisters ();
+  /* AX=0x8001, CX=0x1392, DX=0xA425, BX=0x37B6, BP=0x0123, SI=0x3456, DI=0x6DC9 */
+
+  WRITE_WORD (SEG (DS), REG (BX), 0x29CF);
+  WRITE_WORD (SEG (DS), REG (BX) + 2, 0x1B33);
+  WRITE_WORD (SEG (DS), REG (BX) + 0x80, 0x57DD);
+  WRITE_WORD (SEG (SS), 0x3456, 0xA066);
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 1, "unexpected IP value after 'push ax'\n");
+  assertTrue (REG (SP) == 0xFFFC, "unexpected SP value after 'push ax'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x8001, "unexpected top of the stack value after 'push ax'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 2, "unexpected IP value after 'push cx'\n");
+  assertTrue (REG (SP) == 0xFFFA, "unexpected SP value after 'push cx'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x1392, "unexpected top of the stack value after 'push cx'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 3, "unexpected IP value after 'push dx'\n");
+  assertTrue (REG (SP) == 0xFFF8, "unexpected SP value after 'push dx'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0xA425, "unexpected top of the stack value after 'push dx'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 4, "unexpected IP value after 'push bx'\n");
+  assertTrue (REG (SP) == 0xFFF6, "unexpected SP value after 'push bx'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x37B6, "unexpected top of the stack value after 'push bx'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 5, "unexpected IP value after 'push sp'\n");
+  assertTrue (REG (SP) == 0xFFF4, "unexpected SP value after 'push sp'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0xFFF6, "unexpected top of the stack value after 'push sp'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 6, "unexpected IP value after 'push bp'\n");
+  assertTrue (REG (SP) == 0xFFF2, "unexpected SP value after 'push bp'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x0123, "unexpected top of the stack value after 'push bp'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 7, "unexpected IP value after 'push si'\n");
+  assertTrue (REG (SP) == 0xFFF0, "unexpected SP value after 'push si'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x3456, "unexpected top of the stack value after 'push si'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 8, "unexpected IP value after 'push di'\n");
+  assertTrue (REG (SP) == 0xFFEE, "unexpected SP value after 'push di'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x6DC9, "unexpected top of the stack value after 'push di'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 9, "unexpected IP value after 'push es'\n");
+  assertTrue (REG (SP) == 0xFFEC, "unexpected SP value after 'push es'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x1000, "unexpected top of the stack value after 'push es'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 10, "unexpected IP value after 'push cs'\n");
+  assertTrue (REG (SP) == 0xFFEA, "unexpected SP value after 'push cs'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x0054, "unexpected top of the stack value after 'push cs'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 11, "unexpected IP value after 'push ss'\n");
+  assertTrue (REG (SP) == 0xFFE8, "unexpected SP value after 'push ss'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x2000, "unexpected top of the stack value after 'push ss'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 12, "unexpected IP value after 'push ds'\n");
+  assertTrue (REG (SP) == 0xFFE6, "unexpected SP value after 'push ds'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x3000, "unexpected top of the stack value after 'push ds'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 14, "unexpected IP value after 'push [bx]'\n");
+  assertTrue (REG (SP) == 0xFFE4, "unexpected SP value after 'push [bx]'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x29CF, "unexpected top of the stack value after 'push [bx]'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 17, "unexpected IP value after 'push [bx+2]'\n");
+  assertTrue (REG (SP) == 0xFFE2, "unexpected SP value after 'push [bx+2]'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x1B33, "unexpected top of the stack value after 'push [bx+2]'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 21, "unexpected IP value after 'push [bx+0x80]'\n");
+  assertTrue (REG (SP) == 0xFFE0, "unexpected SP value after 'push [bx+0x80]'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x57DD, "unexpected top of the stack value after 'push [bx+0x80]'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 23, "unexpected IP value after 'db 0xFF, 0xF1'\n");
+  assertTrue (REG (SP) == 0xFFDE, "unexpected SP value after 'db 0xFF, 0xF1'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x1392, "unexpected top of the stack value after 'db 0xFF, 0xF1'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 25, "unexpected IP value after 'push 0x7F'\n");
+  assertTrue (REG (SP) == 0xFFDC, "unexpected SP value after 'push 0x7F'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x007F, "unexpected top of the stack value after 'push 0x7F'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 27, "unexpected IP value after 'push -0x80'\n");
+  assertTrue (REG (SP) == 0xFFDA, "unexpected SP value after 'push -0x80'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0xFF80, "unexpected top of the stack value after 'push -0x80'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 30, "unexpected IP value after 'push 0x80'\n");
+  assertTrue (REG (SP) == 0xFFD8, "unexpected SP value after 'push 0x80'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x0080, "unexpected top of the stack value after 'push 0x80'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 33, "unexpected IP value after 'push 0x955A'\n");
+  assertTrue (REG (SP) == 0xFFD6, "unexpected SP value after 'push 0x955A'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x955A, "unexpected top of the stack value after 'push 0x955A'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 35, "unexpected IP value after 'db 0x8F, 0xC2'\n");
+  assertTrue (REG (SP) == 0xFFD8, "unexpected SP value after 'db 0x8F, 0xC2'\n");
+  assertTrue (REG (DX) == 0x955A, "unexpected DX value after 'db 0x8F, 0xC2'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 37, "unexpected IP value after 'pop [bx]'\n");
+  assertTrue (REG (SP) == 0xFFDA, "unexpected SP value after 'pop [bx]'\n");
+  assertTrue (READ_WORD (SEG (DS), REG (BX)) == 0x0080, "unexpected memory value after 'pop [bx]'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 40, "unexpected IP value after 'pop [bx+2]'\n");
+  assertTrue (REG (SP) == 0xFFDC, "unexpected SP value after 'pop [bx+2]'\n");
+  assertTrue (READ_WORD (SEG (DS), REG (BX) + 2) == 0xFF80, "unexpected memory value after 'pop [bx+2]'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 44, "unexpected IP value after 'pop [bx+0x80]'\n");
+  assertTrue (REG (SP) == 0xFFDE, "unexpected SP value after 'pop [bx+0x80]'\n");
+  assertTrue (READ_WORD (SEG (DS), REG (BX) + 0x80) == 0x007F, "unexpected memory value after 'pop [bx+0x80]'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 45, "unexpected IP value after 'pop ds'\n");
+  assertTrue (REG (SP) == 0xFFE0, "unexpected SP value after 'pop ds'\n");
+  assertTrue (SEG (DS) == 0x1392, "unexpected DS value after 'pop ds'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 46, "unexpected IP value after 'pop es'\n");
+  assertTrue (REG (SP) == 0xFFE2, "unexpected SP value after 'pop es'\n");
+  assertTrue (SEG (ES) == 0x57DD, "unexpected ES value after 'pop es'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 47, "unexpected IP value after 'pop di'\n");
+  assertTrue (REG (SP) == 0xFFE4, "unexpected SP value after 'pop di'\n");
+  assertTrue (REG (DI) == 0x1B33, "unexpected DI value after 'pop di'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 48, "unexpected IP value after 'pop si'\n");
+  assertTrue (REG (SP) == 0xFFE6, "unexpected SP value after 'pop si'\n");
+  assertTrue (REG (SI) == 0x29CF, "unexpected SI value after 'pop si'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 49, "unexpected IP value after 'pop bp'\n");
+  assertTrue (REG (SP) == 0xFFE8, "unexpected SP value after 'pop bp'\n");
+  assertTrue (REG (BP) == 0x3000, "unexpected BP value after 'pop bp'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 50, "unexpected IP value after 'pop bx'\n");
+  assertTrue (REG (SP) == 0xFFEA, "unexpected SP value after 'pop bx'\n");
+  assertTrue (REG (BX) == 0x2000, "unexpected BX value after 'pop bx'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 51, "unexpected IP value after 'pop dx'\n");
+  assertTrue (REG (SP) == 0xFFEC, "unexpected SP value after 'pop dx'\n");
+  assertTrue (REG (DX) == 0x0054, "unexpected DX value after 'pop dx'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 52, "unexpected IP value after 'pop cx'\n");
+  assertTrue (REG (SP) == 0xFFEE, "unexpected SP value after 'pop cx'\n");
+  assertTrue (REG (CX) == 0x1000, "unexpected CX value after 'pop cx'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 53, "unexpected IP value after 'pop ax'\n");
+  assertTrue (REG (SP) == 0xFFF0, "unexpected SP value after 'pop ax'\n");
+  assertTrue (REG (AX) == 0x6DC9, "unexpected AX value after 'pop ax'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 54, "unexpected IP value after 'pop sp'\n");
+  assertTrue (REG (SP) == 0x3456, "unexpected SP value after 'pop sp'\n");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 55, "unexpected IP value after 'pop ss'\n");
+  assertTrue (REG (SP) == 0x3458, "unexpected SP value after 'pop ss'\n");
+  assertTrue (SEG (SS) == 0xA066, "unexpected SS value after 'pop ss'\n");
+
+  printf ("Ok\n");
+}

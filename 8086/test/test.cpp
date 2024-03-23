@@ -30,5 +30,6 @@ int main (int argc, char** args, char** env) {
   registersTest::getGen ();
   registersTest::setGen ();
   processorTest::mov ();
+  processorTest::pushPop ();
   return 0;
 }

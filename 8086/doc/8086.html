@@ -48,7 +48,6 @@
       }
       tr.added td.head {
         background-color: #CACAFF;
-        text-align: left;
       }
       tr.example td {
         background-color: #B0FFB0;
@@ -843,6 +842,17 @@
         <tr class="example">
           <td class="head">PUSH AX</td>
           <td>01 010 000</td>
+        </tr>
+        <tr class="added">
+          <td class="head">PUSH imm</td>
+          <td>011010 <span class="blue">d</span> 0</td>
+          <td>l-data</td>
+          <td class="opt">h-data</td>
+        </tr>
+        <tr class="example">
+          <td class="head">PUSH -1</td>
+          <td>0110 1010</td>
+          <td>1111 1111</td>
         </tr>
       </table>
     </div>

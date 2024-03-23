@@ -130,10 +130,24 @@ void Processor::execute00xxx11x (void) {
         m_segmentOverride = -1;
       }
     }
-  } else if ((m_instruction[0] & 1) != 0) {
-    /* TODO: pop sreg */
   } else {
-    /* TODO: push sreg */
+    executePushPopSeg ();
+  }
+}
+
+void Processor::execute0110 (void) {
+  switch (m_instruction[0] & 0xF) {
+  case 8:
+    executePushImm ();
+    break;
+
+  case 0xA:
+    executePushImm8 ();
+    break;
+
+  default:
+    /* TODO: illegal instruction */
+    ;
   }
 }
 
@@ -179,8 +193,7 @@ void Processor::execute1000 (void) {
     break;
 
   default:
-    /* TODO */
-    ;
+    executePopRm ();
   }
 }
 
@@ -358,6 +371,113 @@ void Processor::execute1100 (void) {
   }
 }
 
+void Processor::execute1111 (void) {
+  switch (m_instruction[0] & 0xF) {
+  case 0:
+    /* TODO */
+    break;
+
+  case 1:
+    /* TODO: illegal instruction */
+    break;
+
+  case 2:
+    /* TODO */
+    break;
+
+  case 3:
+    /* TODO */
+    break;
+
+  case 4:
+    /* TODO */
+    break;
+
+  case 5:
+    /* TODO */
+    break;
+
+  case 6:
+    /* TODO */
+    break;
+
+  case 7:
+    /* TODO */
+    break;
+
+  case 8:
+    /* TODO */
+    break;
+
+  case 9:
+    /* TODO */
+    break;
+
+  case 0xA:
+    /* TODO */
+    break;
+
+  case 0xB:
+    /* TODO */
+    break;
+
+  case 0xC:
+    /* TODO */
+    break;
+
+  case 0xD:
+    /* TODO */
+    break;
+
+  case 0xE:
+    /* TODO */
+    break;
+
+  default:
+    executeMiscGroup ();
+  }
+}
+
+void Processor::executeMiscGroup (void) {
+  int instructionId = m_instruction[1] >> 3 & 7;
+  switch (instructionId) {
+  case 0:
+    /* TODO: incRm */
+    break;
+
+  case 1:
+    /* TODO: decRm */
+    break;
+
+  case 2:
+    /* TODO: callRm */
+    break;
+
+  case 3:
+    /* TODO: callFarMem */
+    break;
+
+  case 4:
+    /* TODO: jmpRm */
+    break;
+
+  case 5:
+    /* TODO: jmpFarMem */
+    break;
+
+  case 6:
+    executePushRm ();
+    break;
+
+  default:
+    if (instructionHasMemoryOperand (m_instruction[1])) {
+      calculateOperandAddress (); /* Advances the instruction pointer */
+    }
+    /* TODO: illegal instruction */
+  }
+  m_registers.ip += 2;
+}
+
 void Processor::executeMovAccMem (void) {
   Address address;
   address.offset = m_instruction.getWord (1);
@@ -437,10 +557,10 @@ void Processor::executeMovRmSeg (void) {
 }
 
 void Processor::executeMovSegRm (void) {
-  if ((m_instruction[1] & 0x20) != 0) {
+  int segId = m_instruction[1] >> 3 & 7;
+  if (segId == CS || segId > 3) {
     /* TODO: illegal instruction */
   }
-  int segId = m_instruction[1] >> 3 & 3;
   if (instructionHasMemoryOperand (m_instruction[1])) {
     Address address = calculateOperandAddress ();
     m_operand1 = m_memory.readWord (address);
@@ -468,11 +588,11 @@ void Processor::executeNextInstruction (void) {
     break;
 
   case 5: /* 50-5F */
-    /* TODO */
+    executePushPopReg ();
     break;
 
   case 6: /* 60-6F */
-    /* TODO */
+    execute0110 ();
     break;
 
   case 7: /* 70-7F */
@@ -508,9 +628,79 @@ void Processor::executeNextInstruction (void) {
     break;
 
   default: /* F0-FF */
-    /* TODO */
-    ;
+    execute1111 ();
   }
+}
+
+void Processor::executePop (void) {
+  m_operand1 = m_memory.readWord (Address (m_registers.seg[SS], m_registers.gen[SP]));
+  m_registers.gen[SP] += 2;
+}
+
+void Processor::executePopRm (void) {
+  if ((m_instruction[1] & 0x38) != 0) {
+    /* TODO: illegal instruction */
+  }
+  executePop ();
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_memory.writeWord (address, m_operand1);
+  } else {
+    m_registers.gen[m_instruction[1] & 7] = m_operand1;
+  }
+  m_registers.ip += 2;
+}
+
+void Processor::executePush (void) {
+  m_registers.gen[SP] -= 2;
+  m_memory.writeWord (Address (m_registers.seg[SS], m_registers.gen[SP]), m_operand1);
+}
+
+void Processor::executePushImm (void) {
+  m_operand1 = m_instruction.getWord (1);
+  executePush ();
+  m_registers.ip += 3;
+}
+
+void Processor::executePushImm8 (void) {
+  m_operand1 = m_instruction.getSignedByteAsWord (1);
+  executePush ();
+  m_registers.ip += 2;
+}
+
+void Processor::executePushPopReg (void) {
+  if ((m_instruction[0] & 0x08) != 0) {
+    executePop ();
+    m_registers.gen[m_instruction[0] & 7] = m_operand1;
+  } else {
+    m_operand1 = m_registers.gen[m_instruction[0] & 7];
+    executePush ();
+  }
+  ++m_registers.ip;
+}
+
+void Processor::executePushPopSeg (void) {
+  int segId = m_instruction[0] >> 3;
+  if ((m_instruction[0] & 1) != 0) {
+    if (segId == CS) {
+      /* TODO: illegal instruction */
+    }
+    executePop ();
+    m_registers.seg[segId] = m_operand1;
+  } else {
+    m_operand1 = m_registers.seg[segId];
+    executePush ();
+  }
+}
+
+void Processor::executePushRm (void) {
+  if (instructionHasMemoryOperand (m_instruction[1])) {
+    Address address = calculateOperandAddress ();
+    m_operand1 = m_memory.readWord (address);
+  } else {
+    m_operand1 = m_registers.gen[m_instruction[1] & 7];
+  }
+  executePush ();
 }
 
 Registers& Processor::registers (void) {

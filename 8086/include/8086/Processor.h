@@ -64,10 +64,13 @@ private:
   Address calculateOperandAddress (void);
   void execute00xx (void);
   void execute00xxx11x (void);
+  void execute0110 (void);
   void execute1000 (void);
   void execute1001 (void);
   void execute1010 (void);
   void execute1100 (void);
+  void execute1111 (void);
+  void executeMiscGroup (void);
   void executeMovAccMem (void);
   void executeMovMemAcc (void);
   void executeMovRegImm (void);
@@ -76,6 +79,14 @@ private:
   void executeMovRmReg (void);
   void executeMovRmSeg (void);
   void executeMovSegRm (void);
+  void executePop (void);
+  void executePopRm (void);
+  void executePush (void);
+  void executePushImm (void);
+  void executePushImm8 (void);
+  void executePushPopReg (void);
+  void executePushPopSeg (void);
+  void executePushRm (void);
 /*
   void executeArithmeticTwoOps (void);
 */
