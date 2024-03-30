@@ -24,6 +24,7 @@
 
 namespace processorTestCode {
   extern const uint8_t mov[137];
+  extern const uint8_t pushfPopf[2];
   extern const uint8_t pushPop[55];
 }
 

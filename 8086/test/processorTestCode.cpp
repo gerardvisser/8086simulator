@@ -88,6 +88,14 @@ const uint8_t processorTestCode::mov[] = {
   0x8E, 0x5F, 0x02, 0x8C, 0xCD, 0x8C, 0x84, 0x00, 0x01
 };
 
+/* processorTestCode::pushfPopf[]
+  pushf
+  popf
+*/
+const uint8_t processorTestCode::pushfPopf[] = {
+  0x9C, 0x9D
+};
+
 /* processorTestCode::pushPop[]
   push ax        ; 1
   push cx        ; 1

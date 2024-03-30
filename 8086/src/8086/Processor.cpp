@@ -230,11 +230,11 @@ void Processor::execute1001 (void) {
     break;
 
   case 0xC:
-    /* TODO */
+    executePushf ();
     break;
 
   case 0xD:
-    /* TODO */
+    executePopf ();
     break;
 
   case 0xE:
@@ -637,6 +637,16 @@ void Processor::executePop (void) {
   m_registers.gen[SP] += 2;
 }
 
+void Processor::executePopf (void) {
+  int64_t mask = 0x0FD5;
+  executePop ();
+  m_operand1 &= mask;
+  mask ^= 0xFFFF;
+  m_registers.flags &= mask;
+  m_registers.flags |= m_operand1;
+  ++m_registers.ip;
+}
+
 void Processor::executePopRm (void) {
   if ((m_instruction[1] & 0x38) != 0) {
     /* TODO: illegal instruction */
@@ -654,6 +664,12 @@ void Processor::executePopRm (void) {
 void Processor::executePush (void) {
   m_registers.gen[SP] -= 2;
   m_memory.writeWord (Address (m_registers.seg[SS], m_registers.gen[SP]), m_operand1);
+}
+
+void Processor::executePushf (void) {
+  m_operand1 = m_registers.flags;
+  executePush ();
+  ++m_registers.ip;
 }
 
 void Processor::executePushImm (void) {

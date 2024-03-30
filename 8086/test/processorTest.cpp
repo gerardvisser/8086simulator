@@ -23,10 +23,13 @@
 #include <8086/Processor.h>
 #include "../src/8086/registerAndFlagIds.h"
 
+#define CLEAR_FLAGS(flags) wrapper.clearFlags (flags)
+#define FLAGS wrapper.processor.registers ().flags
 #define INSTRUCTION_POINTER wrapper.processor.registers ().ip
 #define READ_WORD(seg, off) wrapper.readWord (seg, off)
 #define REG(x) wrapper.processor.registers ().gen[x]
 #define SEG(x) wrapper.processor.registers ().seg[x]
+#define SET_FLAGS(flags) wrapper.setFlags (flags)
 #define WRITE_WORD(seg, off, val) wrapper.writeWord (seg, off, val)
 
 class ProcessorWrapper {
@@ -47,12 +50,21 @@ public:
     processor.registers ().gen[SP] = 0xFFFE;
   }
 
+  void clearFlags (uint16_t flags) {
+    flags ^= 0xFFFF;
+    processor.registers ().flags &= flags;
+  }
+
   void loadCode (const uint8_t* bytes, int count) {
     m_memory.writeBytes (m_startAddress, bytes, count);
   }
 
   int readWord (int segment, int offset) {
     return m_memory.readWord (Address (segment, offset));
+  }
+
+  void setFlags (uint16_t flags) {
+    processor.registers ().flags |= flags;
   }
 
   void setGeneralPurposeRegisters (void) {
@@ -298,6 +310,29 @@ void processorTest::mov (void) {
   wrapper.processor.executeNextInstruction ();
   assertTrue (INSTRUCTION_POINTER == 137, "unexpected IP value after 'mov [si+0x100], es'\n");
   assertTrue (READ_WORD (SEG (DS), REG (SI) + 0x100) == 0x1000, "unexpected memory value after 'mov [si+0x100], es'\n");
+
+  printf ("Ok\n");
+}
+
+void processorTest::pushfPopf (void) {
+  printf ("processorTest::pushfPopf: ");
+
+  ProcessorWrapper wrapper;
+  wrapper.loadCode (processorTestCode::pushfPopf, 2);
+  SET_FLAGS (F_CARRY | F_AUX_CARRY | F_SIGN | F_INTERRUPT | F_OVERFLOW);
+  CLEAR_FLAGS (F_PARITY | F_ZERO | F_TRAP | F_DIRECTION);
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 1, "unexpected IP value after 'pushf'\n");
+  assertTrue (REG (SP) == 0xFFFC, "unexpected SP value after 'pushf'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0xFA93, "unexpected top of the stack value after 'pushf'\n");
+
+  WRITE_WORD (SEG (SS), REG (SP), 0xFA93 ^ 0xFFFF); /* 0xFA93 ^ 0xFFFF = 0x056C */
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 2, "unexpected IP value after 'popf'\n");
+  assertTrue (REG (SP) == 0xFFFE, "unexpected SP value after 'popf'\n");
+  assertTrue (FLAGS == 0xF546, "unexpected flags value after 'popf'\n");
 
   printf ("Ok\n");
 }

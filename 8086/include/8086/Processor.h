@@ -80,8 +80,10 @@ private:
   void executeMovRmSeg (void);
   void executeMovSegRm (void);
   void executePop (void);
+  void executePopf (void);
   void executePopRm (void);
   void executePush (void);
+  void executePushf (void);
   void executePushImm (void);
   void executePushImm8 (void);
   void executePushPopReg (void);
