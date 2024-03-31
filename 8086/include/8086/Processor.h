@@ -70,6 +70,7 @@ private:
   void execute1010 (void);
   void execute1100 (void);
   void execute1111 (void);
+  void executeInterrupt (int id);
   void executeMiscGroup (void);
   void executeMovAccMem (void);
   void executeMovMemAcc (void);

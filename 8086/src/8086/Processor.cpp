@@ -20,7 +20,16 @@
 #include <8086/Processor.h>
 #include "registerAndFlagIds.h"
 
+#define I_DIVIDE_OVERFLOW 0
+#define I_TRAP            1
+#define I_BREAKPOINT      3
+#define I_OVERFLOW        4
+#define I_INVALID_OPCODE  6
+#define I_NO_COPROCESSOR  7
+
 #define instructionHasMemoryOperand(modrmByte) (modrmByte >> 6 != 3)
+
+static constexpr uint16_t INTERRUPT_TRAP_CLEAR_MASK = ~(F_TRAP | F_INTERRUPT);
 
 Processor::Processor (Memory& memory) : m_memory (memory), m_segmentOverride (-1) {
 }
@@ -146,8 +155,7 @@ void Processor::execute0110 (void) {
     break;
 
   default:
-    /* TODO: illegal instruction */
-    ;
+    executeInterrupt (I_INVALID_OPCODE);
   }
 }
 
@@ -354,11 +362,13 @@ void Processor::execute1100 (void) {
     break;
 
   case 0xC:
-    /* TODO */
+    ++m_registers.ip;
+    executeInterrupt (I_BREAKPOINT);
     break;
 
   case 0xD:
-    /* TODO */
+    m_registers.ip += 2;
+    executeInterrupt (m_instruction[1]);
     break;
 
   case 0xE:
@@ -378,7 +388,7 @@ void Processor::execute1111 (void) {
     break;
 
   case 1:
-    /* TODO: illegal instruction */
+    executeInterrupt (I_INVALID_OPCODE);
     break;
 
   case 2:
@@ -438,6 +448,22 @@ void Processor::execute1111 (void) {
   }
 }
 
+void Processor::executeInterrupt (int id) {
+  id <<= 2;
+  Address interruptPointerAddress (0, id);
+
+  m_operand1 = m_registers.flags;
+  executePush ();
+  m_operand1 = m_registers.seg[CS];
+  executePush ();
+  m_operand1 = m_registers.ip;
+  executePush ();
+  m_registers.ip = m_memory.readWord (interruptPointerAddress);
+  interruptPointerAddress += 2;
+  m_registers.seg[CS] = m_memory.readWord (interruptPointerAddress);
+  m_registers.flags &= INTERRUPT_TRAP_CLEAR_MASK;
+}
+
 void Processor::executeMiscGroup (void) {
   int instructionId = m_instruction[1] >> 3 & 7;
   switch (instructionId) {
@@ -470,10 +496,8 @@ void Processor::executeMiscGroup (void) {
     break;
 
   default:
-    if (instructionHasMemoryOperand (m_instruction[1])) {
-      calculateOperandAddress (); /* Advances the instruction pointer */
-    }
-    /* TODO: illegal instruction */
+    executeInterrupt (I_INVALID_OPCODE);
+    return;
   }
   m_registers.ip += 2;
 }
@@ -516,7 +540,8 @@ void Processor::executeMovRegRm (void) {
 
 void Processor::executeMovRmImm (void) {
   if ((m_instruction[1] & 0x38) != 0) {
-    /* TODO: illegal instruction */
+    executeInterrupt (I_INVALID_OPCODE);
+    return;
   }
   bool wide = m_instruction[0] & 1;
   if (instructionHasMemoryOperand (m_instruction[1])) {
@@ -544,7 +569,8 @@ void Processor::executeMovRmReg (void) {
 
 void Processor::executeMovRmSeg (void) {
   if ((m_instruction[1] & 0x20) != 0) {
-    /* TODO: illegal instruction */
+    executeInterrupt (I_INVALID_OPCODE);
+    return;
   }
   int segId = m_instruction[1] >> 3 & 3;
   if (instructionHasMemoryOperand (m_instruction[1])) {
@@ -559,7 +585,8 @@ void Processor::executeMovRmSeg (void) {
 void Processor::executeMovSegRm (void) {
   int segId = m_instruction[1] >> 3 & 7;
   if (segId == CS || segId > 3) {
-    /* TODO: illegal instruction */
+    executeInterrupt (I_INVALID_OPCODE);
+    return;
   }
   if (instructionHasMemoryOperand (m_instruction[1])) {
     Address address = calculateOperandAddress ();
@@ -630,6 +657,10 @@ void Processor::executeNextInstruction (void) {
   default: /* F0-FF */
     execute1111 ();
   }
+
+  if ((m_registers.flags & F_TRAP) != 0) {
+    executeInterrupt (I_TRAP);
+  }
 }
 
 void Processor::executePop (void) {
@@ -649,7 +680,8 @@ void Processor::executePopf (void) {
 
 void Processor::executePopRm (void) {
   if ((m_instruction[1] & 0x38) != 0) {
-    /* TODO: illegal instruction */
+    executeInterrupt (I_INVALID_OPCODE);
+    return;
   }
   executePop ();
   if (instructionHasMemoryOperand (m_instruction[1])) {
@@ -699,7 +731,9 @@ void Processor::executePushPopSeg (void) {
   int segId = m_instruction[0] >> 3;
   if ((m_instruction[0] & 1) != 0) {
     if (segId == CS) {
-      /* TODO: illegal instruction */
+      --m_registers.ip;
+      executeInterrupt (I_INVALID_OPCODE);
+      return;
     }
     executePop ();
     m_registers.seg[segId] = m_operand1;

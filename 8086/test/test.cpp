@@ -32,5 +32,6 @@ int main (int argc, char** args, char** env) {
   processorTest::mov ();
   processorTest::pushPop ();
   processorTest::pushfPopf ();
+  processorTest::interrupt ();
   return 0;
 }

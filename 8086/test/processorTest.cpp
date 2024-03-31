@@ -82,6 +82,47 @@ public:
   }
 };
 
+void processorTest::interrupt (void) {
+  printf ("processorTest::interrupt: ");
+
+  ProcessorWrapper wrapper;
+  WRITE_WORD (0, 3 * 4, 0x018B);
+  WRITE_WORD (0, 3 * 4 + 2, 0x0070);
+  WRITE_WORD (0, 0x19 * 4, 0x0C50);
+  WRITE_WORD (0, 0x19 * 4 + 2, 0x020A);
+
+  INSTRUCTION_POINTER = 0x1234;
+  WRITE_WORD (SEG (CS), INSTRUCTION_POINTER, 0x19CD);
+  SET_FLAGS (F_CARRY | F_AUX_CARRY | F_SIGN | F_INTERRUPT | F_OVERFLOW | F_PARITY | F_ZERO | F_DIRECTION | F_TRAP);
+
+  uint16_t oldFlags = FLAGS;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 0x0C50, "unexpected IP value after 'int 0x19'\n");
+  assertTrue (SEG (CS) == 0x020A, "unexpected CS value after 'int 0x19'\n");
+  assertTrue (REG (SP) == 0xFFF8, "unexpected SP value after 'int 0x19'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x1236, "unexpected value at SS:SP after 'int 0x19'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP) + 2) == 0x0054, "unexpected value at SS:SP+2 after 'int 0x19'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP) + 4) == oldFlags, "unexpected value at SS:SP+4 after 'int 0x19'\n");
+  assertTrue ((oldFlags ^ FLAGS) == (F_INTERRUPT | F_TRAP), "unexpected flags after 'int 0x19'\n");
+
+  INSTRUCTION_POINTER = 0x1234;
+  SEG (CS) = 0x0054;
+  WRITE_WORD (SEG (CS), INSTRUCTION_POINTER, 0x00CC);
+  CLEAR_FLAGS (F_CARRY | F_AUX_CARRY | F_SIGN | F_INTERRUPT | F_OVERFLOW | F_PARITY | F_ZERO | F_DIRECTION | F_TRAP);
+
+  oldFlags = FLAGS;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 0x018B, "unexpected IP value after 'int 0x19'\n");
+  assertTrue (SEG (CS) == 0x0070, "unexpected CS value after 'int 0x19'\n");
+  assertTrue (REG (SP) == 0xFFF2, "unexpected SP value after 'int 0x19'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0x1235, "unexpected value at SS:SP after 'int 0x19'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP) + 2) == 0x0054, "unexpected value at SS:SP+2 after 'int 0x19'\n");
+  assertTrue (READ_WORD (SEG (SS), REG (SP) + 4) == oldFlags, "unexpected value at SS:SP+4 after 'int 0x19'\n");
+  assertTrue (FLAGS == oldFlags, "unexpected flags after 'int 0x19'\n");
+
+  printf ("Ok\n");
+}
+
 void processorTest::mov (void) {
   printf ("processorTest::mov: ");
 
@@ -327,12 +368,12 @@ void processorTest::pushfPopf (void) {
   assertTrue (REG (SP) == 0xFFFC, "unexpected SP value after 'pushf'\n");
   assertTrue (READ_WORD (SEG (SS), REG (SP)) == 0xFA93, "unexpected top of the stack value after 'pushf'\n");
 
-  WRITE_WORD (SEG (SS), REG (SP), 0xFA93 ^ 0xFFFF); /* 0xFA93 ^ 0xFFFF = 0x056C */
+  WRITE_WORD (SEG (SS), REG (SP), 0x046C);
 
   wrapper.processor.executeNextInstruction ();
   assertTrue (INSTRUCTION_POINTER == 2, "unexpected IP value after 'popf'\n");
   assertTrue (REG (SP) == 0xFFFE, "unexpected SP value after 'popf'\n");
-  assertTrue (FLAGS == 0xF546, "unexpected flags value after 'popf'\n");
+  assertTrue (FLAGS == 0xF446, "unexpected flags value after 'popf'\n");
 
   printf ("Ok\n");
 }
