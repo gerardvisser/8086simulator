@@ -90,6 +90,8 @@ private:
   void executePushPopReg (void);
   void executePushPopSeg (void);
   void executePushRm (void);
+  void executeRepStos (void);
+  void executeStos (void);
 /*
   void executeArithmeticTwoOps (void);
 */

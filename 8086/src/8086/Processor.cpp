@@ -27,6 +27,7 @@
 #define I_INVALID_OPCODE  6
 #define I_NO_COPROCESSOR  7
 
+#define flagSet(flag) ((m_registers.flags & flag) != 0)
 #define instructionHasMemoryOperand(modrmByte) (modrmByte >> 6 != 3)
 
 static constexpr uint16_t INTERRUPT_TRAP_CLEAR_MASK = ~(F_TRAP | F_INTERRUPT);
@@ -292,11 +293,8 @@ void Processor::execute1010 (void) {
     break;
 
   case 0xA:
-    /* TODO */
-    break;
-
   case 0xB:
-    /* TODO */
+    executeStos ();
     break;
 
   case 0xC:
@@ -658,7 +656,7 @@ void Processor::executeNextInstruction (void) {
     execute1111 ();
   }
 
-  if ((m_registers.flags & F_TRAP) != 0) {
+  if (flagSet (F_TRAP) && m_segmentOverride == -1) {
     executeInterrupt (I_TRAP);
   }
 }
@@ -751,6 +749,49 @@ void Processor::executePushRm (void) {
     m_operand1 = m_registers.gen[m_instruction[1] & 7];
   }
   executePush ();
+}
+
+void Processor::executeRepStos (void) {
+  if (m_registers.gen[CX] > 0) {
+    Address address (m_registers.seg[ES], m_registers.gen[DI]);
+    bool wide = m_instruction[1] & 1;
+    int step = 1 + wide;
+    if (flagSet (F_DIRECTION)) {
+      step = -step;
+    }
+
+    if (flagSet (F_TRAP)) {
+        m_memory.write (address, m_registers.gen[AX], wide);
+        m_registers.gen[DI] += step;
+        --m_registers.gen[CX];
+        if (m_registers.gen[CX] == 0) {
+          m_registers.ip += 2;
+        }
+    } else {
+      do {
+        m_memory.write (address, m_registers.gen[AX], wide);
+        m_registers.gen[DI] += step;
+        address += step;
+        --m_registers.gen[CX];
+      } while (m_registers.gen[CX] > 0);
+      m_registers.ip += 2;
+    }
+  } else {
+    m_registers.ip += 2;
+  }
+}
+
+void Processor::executeStos (void) {
+  Address address (m_registers.seg[ES], m_registers.gen[DI]);
+  bool wide = m_instruction[0] & 1;
+  int step = 1 + wide;
+  m_memory.write (address, m_registers.gen[AX], wide);
+  if (flagSet (F_DIRECTION)) {
+    m_registers.gen[DI] -= step;
+  } else {
+    m_registers.gen[DI] += step;
+  }
+  ++m_registers.ip;
 }
 
 Registers& Processor::registers (void) {
