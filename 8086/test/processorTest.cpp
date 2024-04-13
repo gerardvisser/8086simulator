@@ -23,6 +23,11 @@
 #include <8086/Processor.h>
 #include "../src/8086/registerAndFlagIds.h"
 
+#define ASSERT_EQUALS(segment, offset, array, len, instructionIdentifier) \
+  for (int _i = 0; _i < len; ++_i) { \
+    assertTrue (wrapper.readByte (segment, offset + _i) == (uint8_t) array[_i], "unexpected memory value at 0x%04X after %s\n", offset + _i, instructionIdentifier); \
+  }
+
 #define CLEAR_FLAGS(flags) wrapper.clearFlags (flags)
 #define FLAGS wrapper.processor.registers ().flags
 #define INSTRUCTION_POINTER wrapper.processor.registers ().ip
@@ -55,8 +60,20 @@ public:
     processor.registers ().flags &= flags;
   }
 
+  void clearMem (int segment, int offset, int numberOfBytes) {
+    Address address (segment, offset);
+    for (int i = 0; i < numberOfBytes; ++i) {
+      m_memory.writeByte (address, 0);
+      ++address;
+    }
+  }
+
   void loadCode (const uint8_t* bytes, int count) {
     m_memory.writeBytes (m_startAddress, bytes, count);
+  }
+
+  int readByte (int segment, int offset) {
+    return m_memory.readByte (Address (segment, offset));
   }
 
   int readWord (int segment, int offset) {
@@ -564,6 +581,171 @@ void processorTest::pushPop (void) {
   assertTrue (INSTRUCTION_POINTER == 55, "unexpected IP value after 'pop ss'\n");
   assertTrue (REG (SP) == 0x3458, "unexpected SP value after 'pop ss'\n");
   assertTrue (SEG (SS) == 0xA066, "unexpected SS value after 'pop ss'\n");
+
+  printf ("Ok\n");
+}
+
+void processorTest::stos (void) {
+  printf ("processorTest::stos: ");
+
+  ProcessorWrapper wrapper;
+  wrapper.loadCode (processorTestCode::stos, 44);
+  REG (AX) = 0xCAFE;
+  REG (DI) = 0x10;
+  wrapper.clearMem (SEG (ES), REG (DI), 10);
+
+  CLEAR_FLAGS (F_DIRECTION);
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 1, "unexpected IP value after first 'stosb'\n");
+  assertTrue (REG (DI) == 0x11, "unexpected DI value after first 'stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xFE\0\0\0\0\0\0\0\0\0", 10, "first 'stosb'");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 2, "unexpected IP value after first 'stosw'\n");
+  assertTrue (REG (DI) == 0x13, "unexpected DI value after first 'stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xFE\xFE\xCA\0\0\0\0\0\0\0", 10, "first 'stosw'");
+
+  REG (CX) = 0;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 4, "unexpected IP value after first 'repz stosb'\n");
+  assertTrue (REG (DI) == 0x13, "unexpected DI value after first 'repz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xFE\xFE\xCA\0\0\0\0\0\0\0", 10, "first 'repz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 6, "unexpected IP value after second 'repz stosb'\n");
+  assertTrue (REG (DI) == 0x14, "unexpected DI value after second 'repz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xFE\xFE\xCA\xFE\0\0\0\0\0\0", 10, "second 'repz stosb'");
+
+  REG (CX) = 3;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 8, "unexpected IP value after third 'repz stosb'\n");
+  assertTrue (REG (DI) == 0x17, "unexpected DI value after third 'repz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xFE\xFE\xCA\xFE\xFE\xFE\xFE\0\0\0", 10, "third 'repz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 10, "unexpected IP value after first 'repz stosw'\n");
+  assertTrue (REG (DI) == 0x19, "unexpected DI value after first 'repz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xFE\xFE\xCA\xFE\xFE\xFE\xFE\xFE\xCA\0", 10, "first 'repz stosw'");
+
+  REG (AX) = 0xBABE;
+  REG (DI) = 0x10;
+  REG (CX) = 2;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 12, "unexpected IP value after second 'repz stosw'\n");
+  assertTrue (REG (DI) == 0x14, "unexpected DI value after second 'repz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xBE\xBA\xBE\xBA\xFE\xFE\xFE\xFE\xCA\0", 10, "second 'repz stosw'");
+
+  REG (CX) = 0;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 14, "unexpected IP value after first 'repnz stosb'\n");
+  assertTrue (REG (DI) == 0x14, "unexpected DI value after first 'repnz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xBE\xBA\xBE\xBA\xFE\xFE\xFE\xFE\xCA\0", 10, "first 'repnz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 16, "unexpected IP value after second 'repnz stosb'\n");
+  assertTrue (REG (DI) == 0x15, "unexpected DI value after second 'repnz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xBE\xBA\xBE\xBA\xBE\xFE\xFE\xFE\xCA\0", 10, "second 'repnz stosb'");
+
+  REG (CX) = 4;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 18, "unexpected IP value after third 'repnz stosb'\n");
+  assertTrue (REG (DI) == 0x19, "unexpected DI value after third 'repnz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\xBE\xBA\xBE\xBA\xBE\xBE\xBE\xBE\xBE\0", 10, "third 'repnz stosb'");
+
+  REG (AX) = 0x1234;
+  REG (DI) = 0x10;
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 20, "unexpected IP value after first 'repnz stosw'\n");
+  assertTrue (REG (DI) == 0x12, "unexpected DI value after first 'repnz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x12\xBE\xBA\xBE\xBE\xBE\xBE\xBE\0", 10, "first 'repnz stosw'");
+
+  REG (CX) = 3;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 22, "unexpected IP value after second 'repnz stosw'\n");
+  assertTrue (REG (DI) == 0x18, "unexpected DI value after second 'repnz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x12\x34\x12\x34\x12\x34\x12\xBE\0", 10, "second 'repnz stosw'");
+
+  REG (AX) = 0x5678;
+  SET_FLAGS (F_DIRECTION);
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 23, "unexpected IP value after second 'stosb'\n");
+  assertTrue (REG (DI) == 0x17, "unexpected DI value after second 'stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x12\x34\x12\x34\x12\x34\x12\x78\0", 10, "second 'stosb'");
+
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 24, "unexpected IP value after second 'stosw'\n");
+  assertTrue (REG (DI) == 0x15, "unexpected DI value after second 'stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x12\x34\x12\x34\x12\x34\x78\x56\0", 10, "second 'stosw'");
+
+  REG (CX) = 0;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 26, "unexpected IP value after fourth 'repz stosb'\n");
+  assertTrue (REG (DI) == 0x15, "unexpected DI value after fourth 'repz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x12\x34\x12\x34\x12\x34\x78\x56\0", 10, "fourth 'repz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 28, "unexpected IP value after fifth 'repz stosb'\n");
+  assertTrue (REG (DI) == 0x14, "unexpected DI value after fifth 'repz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x12\x34\x12\x34\x78\x34\x78\x56\0", 10, "fifth 'repz stosb'");
+
+  REG (CX) = 4;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 30, "unexpected IP value after sixth 'repz stosb'\n");
+  assertTrue (REG (DI) == 0x10, "unexpected DI value after sixth 'repz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x34\x78\x78\x78\x78\x78\x34\x78\x56\0", 10, "sixth 'repz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 32, "unexpected IP value after third 'repz stosw'\n");
+  assertTrue (REG (DI) == 0x0E, "unexpected DI value after third 'repz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x56\x78\x78\x78\x78\x34\x78\x56\0", 10, "third 'repz stosw'");
+
+  REG (AX) = 0x8001;
+  REG (DI) = 0x17;
+  REG (CX) = 3;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 34, "unexpected IP value after fourth 'repz stosw'\n");
+  assertTrue (REG (DI) == 0x11, "unexpected DI value after fourth 'repz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x56\x78\x01\x80\x01\x80\x01\x80\0", 10, "fourth 'repz stosw'");
+
+  REG (CX) = 0;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 36, "unexpected IP value after fourth 'repnz stosb'\n");
+  assertTrue (REG (DI) == 0x11, "unexpected DI value after fourth 'repnz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x56\x78\x01\x80\x01\x80\x01\x80\0", 10, "fourth 'repnz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 38, "unexpected IP value after fifth 'repnz stosb'\n");
+  assertTrue (REG (DI) == 0x10, "unexpected DI value after fifth 'repnz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x01\x78\x01\x80\x01\x80\x01\x80\0", 10, "fifth 'repnz stosb'");
+
+  REG (AX) = 0x1392;
+  REG (DI) = 0x18;
+  REG (CX) = 6;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 40, "unexpected IP value after sixth 'repnz stosb'\n");
+  assertTrue (REG (DI) == 0x12, "unexpected DI value after sixth 'repnz stosb'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x01\x78\x92\x92\x92\x92\x92\x92\0", 10, "sixth 'repnz stosb'");
+
+  REG (CX) = 1;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 42, "unexpected IP value after third 'repnz stosw'\n");
+  assertTrue (REG (DI) == 0x10, "unexpected DI value after third 'repnz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x01\x92\x13\x92\x92\x92\x92\x92\0", 10, "third 'repnz stosw'");
+
+  REG (AX) = 0xA425;
+  REG (DI) = 0x17;
+  REG (CX) = 4;
+  wrapper.processor.executeNextInstruction ();
+  assertTrue (INSTRUCTION_POINTER == 44, "unexpected IP value after fourth 'repnz stosw'\n");
+  assertTrue (REG (DI) == 0x0F, "unexpected DI value after fourth 'repnz stosw'\n");
+  ASSERT_EQUALS (SEG (ES), 0x10, "\x78\x25\xA4\x25\xA4\x25\xA4\x25\xA4\0", 10, "fourth 'repnz stosw'");
 
   printf ("Ok\n");
 }

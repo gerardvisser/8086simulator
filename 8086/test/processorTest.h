@@ -25,6 +25,7 @@ namespace processorTest {
   void pushPop (void);
   void pushfPopf (void);
   void interrupt (void);
+  void stos (void);
 }
 
 #endif

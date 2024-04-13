@@ -269,19 +269,13 @@ void Processor::execute1010 (void) {
     break;
 
   case 4:
-    /* TODO */
-    break;
-
   case 5:
-    /* TODO */
+    /* TODO movs */
     break;
 
   case 6:
-    /* TODO */
-    break;
-
   case 7:
-    /* TODO */
+    /* TODO cmps */
     break;
 
   case 8:
@@ -298,20 +292,14 @@ void Processor::execute1010 (void) {
     break;
 
   case 0xC:
-    /* TODO */
-    break;
-
   case 0xD:
-    /* TODO */
+    /* TODO lods */
     break;
 
   case 0xE:
-    /* TODO */
-    break;
-
-  default:
-    /* TODO */
-    break;
+  case 0xF:
+    /* TODO scas */
+    ;
   }
 }
 
@@ -390,11 +378,11 @@ void Processor::execute1111 (void) {
     break;
 
   case 2:
-    /* TODO */
+    executeRepnz ();
     break;
 
   case 3:
-    /* TODO */
+    executeRepz ();
     break;
 
   case 4:
@@ -751,6 +739,38 @@ void Processor::executePushRm (void) {
   executePush ();
 }
 
+void Processor::executeRepnz (void) {
+  switch ((uint8_t) (m_instruction[1] - 0xA4)) {
+  case 0:
+  case 1:
+    /* TODO movs */
+    break;
+
+  case 2:
+  case 3:
+    /* TODO cmps */
+    break;
+
+  case 6:
+  case 7:
+    executeRepStos ();
+    break;
+
+  case 8:
+  case 9:
+    /* TODO lods */
+    break;
+
+  case 10:
+  case 11:
+    /* TODO scas */
+    break;
+
+  default:
+    ++m_registers.ip;
+  }
+}
+
 void Processor::executeRepStos (void) {
   if (m_registers.gen[CX] > 0) {
     Address address (m_registers.seg[ES], m_registers.gen[DI]);
@@ -778,6 +798,38 @@ void Processor::executeRepStos (void) {
     }
   } else {
     m_registers.ip += 2;
+  }
+}
+
+void Processor::executeRepz (void) {
+  switch ((uint8_t) (m_instruction[1] - 0xA4)) {
+  case 0:
+  case 1:
+    /* TODO movs */
+    break;
+
+  case 2:
+  case 3:
+    /* TODO cmps */
+    break;
+
+  case 6:
+  case 7:
+    executeRepStos ();
+    break;
+
+  case 8:
+  case 9:
+    /* TODO lods */
+    break;
+
+  case 10:
+  case 11:
+    /* TODO scas */
+    break;
+
+  default:
+    ++m_registers.ip;
   }
 }
 
